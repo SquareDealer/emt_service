@@ -10,6 +10,7 @@ import { PartLine } from './entities/part-line.entity';
 import { TaskTemplate } from './entities/task-template.entity';
 import { Setting } from './entities/setting.entity';
 import { Init1718200000000 } from './migrations/1718200000000-Init';
+import { AddWorkOrderNotes1718300000000 } from './migrations/1718300000000-AddWorkOrderNotes';
 
 loadEnv();
 
@@ -24,7 +25,7 @@ export const entities = [
   Setting,
 ];
 
-export const migrations = [Init1718200000000];
+export const migrations = [Init1718200000000, AddWorkOrderNotes1718300000000];
 
 /** Standalone DataSource for the TypeORM CLI (migrations). */
 export const AppDataSource = new DataSource({

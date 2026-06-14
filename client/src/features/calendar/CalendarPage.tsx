@@ -105,7 +105,7 @@ export function CalendarPage() {
                         key={w.id}
                         className="cal-event"
                         data-status={w.status}
-                        onClick={() => navigate(`/work-orders/${w.id}`)}
+                        onClick={() => navigate(`/work-orders/${w.id}`, { state: { back: { to: '/calendar', label: 'Календарь' } } })}
                         title={`${STATUS_LABEL[w.status]} · ${money(w.status === 'closed' ? w.total_frozen ?? w.total_cached : w.total_cached)}`}
                       >
                         <span className="cal-event-time mono">{timeOnly(w.scheduled_at)}</span>

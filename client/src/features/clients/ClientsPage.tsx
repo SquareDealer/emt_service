@@ -6,11 +6,17 @@ import { api } from '../../lib/api';
 import { phone as fmtPhone, dateShort, money, sourceLabel } from '../../lib/format';
 import { Avatar, EmptyState, ListSkeleton } from '../../components/ui';
 import { ClientFormModal } from './ClientFormModal';
+import type { ClientSource } from '../../lib/types';
 import './clients.css';
+
+type SourceFilter = 'all' | ClientSource;
+type SortKey = 'created_desc' | 'created_asc' | 'deals_desc';
 
 export function ClientsPage() {
   const navigate = useNavigate();
   const [q, setQ] = useState('');
+  const [source, setSource] = useState<SourceFilter>('all');
+  const [sort, setSort] = useState<SortKey>('created_desc');
   const [adding, setAdding] = useState(false);
 
   const { data: clients, isLoading } = useQuery({
@@ -19,16 +25,30 @@ export function ClientsPage() {
   });
 
   const filtered = useMemo(() => {
-    const list = clients ?? [];
+    let list = clients ?? [];
     const term = q.trim().toLowerCase();
-    if (!term) return list;
-    const digits = term.replace(/\D/g, '');
-    return list.filter(
-      (c) =>
-        c.full_name.toLowerCase().includes(term) ||
-        (digits && c.phone.replace(/\D/g, '').includes(digits)),
-    );
-  }, [clients, q]);
+    if (term) {
+      const digits = term.replace(/\D/g, '');
+      list = list.filter(
+        (c) =>
+          c.full_name.toLowerCase().includes(term) ||
+          (!!digits && c.phone.replace(/\D/g, '').includes(digits)),
+      );
+    }
+    if (source !== 'all') list = list.filter((c) => c.source === source);
+
+    const ts = (s: string) => new Date(s).getTime();
+    return [...list].sort((a, b) => {
+      if (sort === 'deals_desc') {
+        return (
+          b.imported_deals_count - a.imported_deals_count ||
+          ts(b.created_at) - ts(a.created_at)
+        );
+      }
+      if (sort === 'created_asc') return ts(a.created_at) - ts(b.created_at);
+      return ts(b.created_at) - ts(a.created_at);
+    });
+  }, [clients, q, source, sort]);
 
   return (
     <div className="page">
@@ -44,17 +64,45 @@ export function ClientsPage() {
         </button>
       </div>
 
-      <div className="clients-search">
-        <Search size={16} className="muted" />
-        <input
-          className="clients-search-input"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Фильтр по имени или телефону…"
-          aria-label="Фильтр клиентов"
-        />
-        {q && <span className="text-xs muted">{filtered.length} найдено</span>}
+      <div className="clients-controls">
+        <div className="clients-search grow">
+          <Search size={16} className="muted" />
+          <input
+            className="clients-search-input"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Фильтр по имени или телефону…"
+            aria-label="Фильтр клиентов"
+          />
+        </div>
+        <select
+          className="select clients-select"
+          value={source}
+          onChange={(e) => setSource(e.target.value as SourceFilter)}
+          aria-label="Источник"
+        >
+          <option value="all">Все источники</option>
+          <option value="manual">Вручную</option>
+          <option value="csv_import">Импорт</option>
+          <option value="telegram_bot">Telegram</option>
+        </select>
+        <select
+          className="select clients-select"
+          value={sort}
+          onChange={(e) => setSort(e.target.value as SortKey)}
+          aria-label="Сортировка"
+        >
+          <option value="created_desc">Сначала новые</option>
+          <option value="created_asc">Сначала старые</option>
+          <option value="deals_desc">Больше сделок (история)</option>
+        </select>
       </div>
+
+      {(q || source !== 'all') && (
+        <div className="text-xs muted" style={{ marginBottom: 'var(--sp-3)', marginTop: 'calc(-1 * var(--sp-2))' }}>
+          Найдено: {filtered.length}
+        </div>
+      )}
 
       <div className="panel" style={{ overflow: 'hidden' }}>
         <div className="list-head client-row">

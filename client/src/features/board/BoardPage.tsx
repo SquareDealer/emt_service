@@ -102,7 +102,7 @@ export function BoardPage() {
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
           <div className="board">
             {STATUS_ORDER.map((s) => (
-              <Column key={s} status={s} items={cols[s]} onOpen={(id) => navigate(`/work-orders/${id}`)} />
+              <Column key={s} status={s} items={cols[s]} onOpen={(id) => navigate(`/work-orders/${id}`, { state: { back: { to: '/board', label: 'Доска' } } })} />
             ))}
           </div>
           <DragOverlay dropAnimation={null}>
@@ -135,32 +135,31 @@ function Column({ status, items, onOpen }: { status: WorkOrderStatus; items: Wor
 
 function DraggableCard({ wo, onOpen }: { wo: WorkOrder; onOpen: (id: string) => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: wo.id });
+  // Listeners on the whole card -> drag from anywhere. PointerSensor's 5px
+  // activation distance lets a plain click (no movement) still open the order.
   return (
-    <div ref={setNodeRef} style={{ opacity: isDragging ? 0.35 : 1 }}>
-      <Card wo={wo} onOpen={onOpen} handleProps={{ ...attributes, ...listeners }} />
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      onClick={() => onOpen(wo.id)}
+      className="board-card-drag"
+      style={{ opacity: isDragging ? 0.35 : 1 }}
+    >
+      <Card wo={wo} />
     </div>
   );
 }
 
-function Card({
-  wo,
-  onOpen,
-  handleProps,
-  dragging,
-}: {
-  wo: WorkOrder;
-  onOpen?: (id: string) => void;
-  handleProps?: Record<string, unknown>;
-  dragging?: boolean;
-}) {
+function Card({ wo, dragging }: { wo: WorkOrder; dragging?: boolean }) {
   const total = wo.status === 'closed' ? wo.total_frozen ?? wo.total_cached : wo.total_cached;
   return (
-    <div className={`board-card ${dragging ? 'is-dragging' : ''}`} onClick={() => onOpen?.(wo.id)} role={onOpen ? 'button' : undefined}>
+    <div className={`board-card ${dragging ? 'is-dragging' : ''}`}>
       <div className="board-card-top">
         <span className="board-card-title truncate">{wo.title || 'Заказ-наряд'}</span>
-        <button className="board-grip" {...handleProps} aria-label="Перетащить" onClick={(e) => e.stopPropagation()}>
+        <span className="board-grip" aria-hidden>
           <GripVertical size={14} />
-        </button>
+        </span>
       </div>
       <div className="board-card-meta">
         <Car size={13} />

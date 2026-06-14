@@ -130,7 +130,8 @@ export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => v
       qc.invalidateQueries();
       toast('Заказ-наряд создан', 'success');
       onClose();
-      navigate(`/work-orders/${wo.id}`);
+      const label = clientMode === 'new' ? fullName.trim() : picked?.full_name ?? 'Клиент';
+      navigate(`/work-orders/${wo.id}`, { state: { back: { to: `/clients/${clientId}`, label } } });
     } catch (e) {
       toast((e as Error).message || 'Не удалось создать', 'error');
     } finally {

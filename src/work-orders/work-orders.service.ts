@@ -126,6 +126,7 @@ export class WorkOrdersService {
     }
 
     if (dto.title !== undefined) wo.title = dto.title;
+    if (dto.notes !== undefined) wo.notes = dto.notes;
     if (dto.scheduled_at !== undefined)
       wo.scheduled_at = dto.scheduled_at ? new Date(dto.scheduled_at) : null;
     if (dto.scheduled_duration_min !== undefined)

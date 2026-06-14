@@ -53,6 +53,9 @@ export class WorkOrder {
   @Column({ type: 'text', nullable: true })
   title: string | null;
 
+  @Column({ type: 'text', nullable: true })
+  notes: string | null;
+
   @Column({ name: 'scheduled_at', type: 'timestamptz', nullable: true })
   scheduled_at: Date | null;
 

@@ -111,6 +111,8 @@ export const api = {
     request<WorkOrder>(`/work-orders/${id}/status`, { method: 'PATCH', body: { status } }),
   closeWorkOrder: (id: string) =>
     request<WorkOrder>(`/work-orders/${id}/close`, { method: 'POST' }),
+  deleteWorkOrder: (id: string) =>
+    request<void>(`/work-orders/${id}`, { method: 'DELETE' }),
   addLabor: (id: string, body: Record<string, unknown>) =>
     request<WorkOrder>(`/work-orders/${id}/labor`, { body }),
   removeLabor: (id: string, lineId: string) =>

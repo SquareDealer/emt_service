@@ -45,6 +45,10 @@
 .board-col-body.over { background: var(--primary-wash); }
 .board-empty { text-align: center; color: var(--faint); font-size: var(--text-xs); padding: var(--sp-4) 0; }
 
+.board-card-drag { cursor: grab; touch-action: none; outline: none; border-radius: var(--r-md); }
+.board-card-drag:active { cursor: grabbing; }
+.board-card-drag:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
 .board-card {
   background: var(--surface);
   border: 1px solid var(--border);

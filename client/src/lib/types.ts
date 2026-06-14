@@ -59,6 +59,7 @@ export interface WorkOrder {
   assigned_master_id: string | null;
   status: WorkOrderStatus;
   title: string | null;
+  notes: string | null;
   scheduled_at: string | null;
   scheduled_duration_min: number | null;
   discount_type: DiscountType | null;

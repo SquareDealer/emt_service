@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -12,6 +12,8 @@ import {
   Check,
   Car,
   CalendarClock,
+  Save,
+  StickyNote,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
@@ -25,8 +27,23 @@ import {
 } from '../../lib/format';
 import { STATUS_LABEL, STATUS_ORDER } from '../../lib/types';
 import type { WorkOrder, WorkOrderStatus, DiscountType } from '../../lib/types';
-import { Spinner, StatusPill, EmptyState } from '../../components/ui';
+import { Spinner, StatusPill, EmptyState, Modal } from '../../components/ui';
 import './wo.css';
+
+interface BackTarget { to: string; label: string }
+
+function isEmptyWo(w: WorkOrder | null): boolean {
+  return (
+    !!w &&
+    w.status === 'scheduled' &&
+    (w.labor_lines?.length ?? 0) === 0 &&
+    (w.part_lines?.length ?? 0) === 0 &&
+    !w.title?.trim() &&
+    !w.notes?.trim() &&
+    !w.scheduled_at &&
+    !w.discount_type
+  );
+}
 
 function toLocalInput(iso: string | null): string {
   if (!iso) return '';
@@ -88,11 +105,62 @@ export function WorkOrderPage() {
     onSuccess: onSaved,
   });
 
+  // Where "назад" goes — set by whoever navigated here (client/board/calendar).
+  const navigate = useNavigate();
+  const location = useLocation();
+  const back: BackTarget =
+    (location.state as { back?: BackTarget } | null)?.back ?? { to: '/board', label: 'Доска' };
+
+  // Keep latest WO in a ref so the unmount cleanup can decide to drop an empty one.
+  const keepRef = useRef(false);
+  const woRef = useRef<WorkOrder | null>(null);
+  useEffect(() => {
+    woRef.current = wo ?? null;
+  }, [wo]);
+
+  // Abandoned empty naряд (no lines/title/notes/time) is removed when leaving,
+  // so the board/calendar don't fill with blank orders.
+  useEffect(() => {
+    return () => {
+      if (!keepRef.current && isEmptyWo(woRef.current)) {
+        api
+          .deleteWorkOrder(id)
+          .then(() => {
+            qc.invalidateQueries({ queryKey: ['work-orders'] });
+            qc.invalidateQueries({ queryKey: ['board'] });
+            qc.invalidateQueries({ queryKey: ['calendar'] });
+          })
+          .catch(() => {});
+      }
+    };
+  }, [id, qc]);
+
+  const [confirmDel, setConfirmDel] = useState(false);
+  const mDelete = useMutation({
+    mutationFn: () => api.deleteWorkOrder(id),
+    onSuccess: () => {
+      keepRef.current = true;
+      qc.invalidateQueries({ queryKey: ['work-orders'] });
+      qc.invalidateQueries({ queryKey: ['board'] });
+      qc.invalidateQueries({ queryKey: ['calendar'] });
+      qc.invalidateQueries({ queryKey: ['client-vehicles'] });
+      toast('Наряд удалён', 'success');
+      navigate(back.to);
+    },
+    onError: (e) => toast((e as Error).message, 'error'),
+  });
+
+  const handleSave = () => {
+    keepRef.current = true; // explicit keep — don't auto-delete even if empty
+    toast('Сохранено успешно', 'success');
+    navigate(back.to);
+  };
+
   if (isLoading) return <div className="page center" style={{ minHeight: 320 }}><Spinner size={22} /></div>;
   if (!wo) {
     return (
       <div className="page">
-        <EmptyState title="Заказ-наряд не найден" action={<Link className="btn btn-default" to="/board">К доске</Link>} />
+        <EmptyState title="Заказ-наряд не найден" action={<Link className="btn btn-default" to={back.to}>{back.label}</Link>} />
       </div>
     );
   }
@@ -106,7 +174,7 @@ export function WorkOrderPage() {
 
   return (
     <div className="page page-wide wo-page">
-      <Link to="/board" className="back-link"><ArrowLeft size={15} /> Доска</Link>
+      <Link to={back.to} className="back-link"><ArrowLeft size={15} /> {back.label}</Link>
 
       <header className="wo-head">
         <div className="grow" style={{ minWidth: 0 }}>
@@ -138,22 +206,26 @@ export function WorkOrderPage() {
               </button>
             </>
           ) : (
-            <>
-              <select
-                className="select wo-status-select"
-                value={wo.status}
-                onChange={(e) => mStatus.mutate(e.target.value as WorkOrderStatus)}
-                aria-label="Статус"
-              >
-                {STATUS_ORDER.filter((s) => s !== 'closed').map((s) => (
-                  <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-                ))}
-              </select>
-              <button className="btn btn-primary" onClick={() => mClose.mutate()} disabled={mClose.isPending}>
-                {mClose.isPending ? <Spinner /> : <Lock size={15} />} Закрыть наряд
-              </button>
-            </>
+            <select
+              className="select wo-status-select"
+              value={wo.status}
+              onChange={(e) => mStatus.mutate(e.target.value as WorkOrderStatus)}
+              aria-label="Статус"
+            >
+              {STATUS_ORDER.filter((s) => s !== 'closed').map((s) => (
+                <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+              ))}
+            </select>
           )}
+          <button
+            className="btn btn-danger btn-icon"
+            onClick={() => setConfirmDel(true)}
+            disabled={mDelete.isPending}
+            aria-label="Удалить наряд"
+            title="Удалить наряд"
+          >
+            <Trash2 size={15} />
+          </button>
         </div>
       </header>
 
@@ -242,6 +314,25 @@ export function WorkOrderPage() {
               {!closed && <AddPartRow onAdd={(b) => mAddPart.mutate(b)} busy={mAddPart.isPending} />}
             </div>
           </section>
+
+          {/* notes */}
+          <section className="panel">
+            <div className="panel-head">
+              <h2 className="panel-title"><StickyNote size={16} className="muted" style={{ display: 'inline', verticalAlign: '-3px', marginRight: 6 }} />Заметки</h2>
+            </div>
+            <div style={{ padding: 'var(--sp-3) var(--sp-4)' }}>
+              <textarea
+                className="textarea"
+                defaultValue={wo.notes ?? ''}
+                key={wo.id + (wo.notes ?? '')}
+                placeholder="Комментарий по работе, договорённости с клиентом, что проверить…"
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v !== (wo.notes ?? '')) mUpdate.mutate({ notes: v || null });
+                }}
+              />
+            </div>
+          </section>
         </div>
 
         {/* summary */}
@@ -273,15 +364,40 @@ export function WorkOrderPage() {
             </div>
 
             {!closed ? (
-              <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => mClose.mutate()} disabled={mClose.isPending}>
-                {mClose.isPending ? <Spinner /> : <Lock size={15} />} Закрыть и зафиксировать
-              </button>
+              <div className="col gap-2">
+                <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleSave}>
+                  <Save size={15} /> Сохранить
+                </button>
+                <button className="btn btn-default" style={{ width: '100%' }} onClick={() => mClose.mutate()} disabled={mClose.isPending}>
+                  {mClose.isPending ? <Spinner /> : <Lock size={15} />} Закрыть и зафиксировать
+                </button>
+              </div>
             ) : (
               <div className="frozen-chip"><Check size={14} /> Зафиксировано {money(wo.total_frozen)}</div>
             )}
           </div>
         </aside>
       </div>
+
+      <Modal
+        open={confirmDel}
+        onClose={() => setConfirmDel(false)}
+        title="Удалить заказ-наряд?"
+        width={420}
+        footer={
+          <>
+            <button className="btn btn-ghost" onClick={() => setConfirmDel(false)} disabled={mDelete.isPending}>Отмена</button>
+            <button className="btn btn-danger" onClick={() => mDelete.mutate()} disabled={mDelete.isPending}>
+              {mDelete.isPending ? <Spinner /> : <Trash2 size={15} />} Удалить
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm">
+          Наряд{wo.title ? ` «${wo.title}»` : ''} и все его строки сметы будут удалены без возможности
+          восстановления.
+        </p>
+      </Modal>
     </div>
   );
 }

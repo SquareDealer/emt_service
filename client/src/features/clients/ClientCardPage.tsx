@@ -52,12 +52,14 @@ export function ClientCardPage() {
 
   const orders = (allOrders ?? []).filter((w) => w.vehicle?.client?.id === id);
 
+  const backToClient = { to: `/clients/${id}`, label: client?.full_name ?? 'Клиент' };
+
   const newWorkOrder = async (vehicleId: string) => {
     setCreatingWo(vehicleId);
     try {
       const wo = await api.createWorkOrder({ vehicle_id: vehicleId } as never);
       qc.invalidateQueries({ queryKey: ['work-orders'] });
-      navigate(`/work-orders/${wo.id}`);
+      navigate(`/work-orders/${wo.id}`, { state: { back: backToClient } });
     } catch (e) {
       toast((e as Error).message || 'Не удалось создать наряд', 'error');
     } finally {
@@ -170,7 +172,7 @@ export function ClientCardPage() {
           ) : (
             <div className="list">
               {orders.map((w) => (
-                <button key={w.id} className="list-row wo-row" onClick={() => navigate(`/work-orders/${w.id}`)}>
+                <button key={w.id} className="list-row wo-row" onClick={() => navigate(`/work-orders/${w.id}`, { state: { back: backToClient } })}>
                   <div className="col" style={{ minWidth: 0 }}>
                     <span className="fw-500 truncate">{w.title || 'Заказ-наряд'}</span>
                     <span className="text-xs muted">
