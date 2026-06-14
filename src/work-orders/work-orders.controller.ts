@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
   Query,
+  StreamableFile,
 } from '@nestjs/common';
 import { WorkOrdersService } from './work-orders.service';
 import {
@@ -101,5 +102,16 @@ export class WorkOrdersController {
   @Post(':id/close')
   close(@Param('id', ParseUUIDPipe) id: string) {
     return this.workOrders.close(id);
+  }
+
+  @Get(':id/pdf')
+  async pdf(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<StreamableFile> {
+    const { buffer, filename } = await this.workOrders.renderPdf(id);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${filename}"`,
+    });
   }
 }

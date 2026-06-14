@@ -110,6 +110,10 @@ export class WorkOrder {
   @Column({ name: 'closed_at', type: 'timestamptz', nullable: true })
   closed_at: Date | null;
 
+  /** Sequential calc-document number, assigned on first freeze (see migration). */
+  @Column({ name: 'doc_number', type: 'int', nullable: true })
+  doc_number: number | null;
+
   @OneToMany(() => LaborLine, (l) => l.work_order, { cascade: true })
   labor_lines: LaborLine[];
 

@@ -14,6 +14,7 @@ import {
   CalendarClock,
   Save,
   StickyNote,
+  FileDown,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
@@ -43,6 +44,17 @@ function isEmptyWo(w: WorkOrder | null): boolean {
     !w.scheduled_at &&
     !w.discount_type
   );
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function toLocalInput(iso: string | null): string {
@@ -84,6 +96,14 @@ export function WorkOrderPage() {
   const mClose = useMutation({
     mutationFn: () => api.closeWorkOrder(id),
     onSuccess: (n) => { onSaved(n); toast('Наряд закрыт и зафиксирован', 'success'); },
+    onError: (e) => toast((e as Error).message, 'error'),
+  });
+  const mPdf = useMutation({
+    mutationFn: () => api.workOrderPdf(id),
+    onSuccess: (blob) => {
+      downloadBlob(blob, `kalkulyaciya-${wo?.doc_number ?? id.slice(0, 8)}.pdf`);
+      toast('Документ сформирован', 'success');
+    },
     onError: (e) => toast((e as Error).message, 'error'),
   });
   const mAddLabor = useMutation({
@@ -373,7 +393,12 @@ export function WorkOrderPage() {
                 </button>
               </div>
             ) : (
-              <div className="frozen-chip"><Check size={14} /> Зафиксировано {money(wo.total_frozen)}</div>
+              <div className="col gap-2">
+                <div className="frozen-chip"><Check size={14} /> Зафиксировано {money(wo.total_frozen)}</div>
+                <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => mPdf.mutate()} disabled={mPdf.isPending}>
+                  {mPdf.isPending ? <Spinner /> : <FileDown size={15} />} Сгенерировать отчёт
+                </button>
+              </div>
             )}
           </div>
         </aside>

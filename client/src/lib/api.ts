@@ -1,4 +1,5 @@
 import type {
+  AppSettings,
   AuthUser,
   Client,
   ImportReport,
@@ -70,6 +71,26 @@ function safeJson(t: string) {
   }
 }
 
+/** Binary GET (e.g. PDF). JWT goes in the header, so a plain <a href> won't do. */
+async function requestBlob(path: string): Promise<Blob> {
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(BASE + path, { headers });
+
+  if (res.status === 401) {
+    setToken(null);
+    window.dispatchEvent(new CustomEvent('crm-unauthorized'));
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    const data = text ? safeJson(text) : null;
+    const msg = (data && (data.message || data.error)) || `Ошибка ${res.status}`;
+    throw new ApiError(res.status, Array.isArray(msg) ? msg.join(', ') : String(msg));
+  }
+  return res.blob();
+}
+
 export const api = {
   // auth
   login: (login: string, password: string) =>
@@ -121,6 +142,7 @@ export const api = {
     request<WorkOrder>(`/work-orders/${id}/parts`, { body }),
   removePart: (id: string, lineId: string) =>
     request<WorkOrder>(`/work-orders/${id}/parts/${lineId}`, { method: 'DELETE' }),
+  workOrderPdf: (id: string) => requestBlob(`/work-orders/${id}/pdf`),
 
   // templates & settings
   templates: () => request<TaskTemplate[]>('/task-templates'),
@@ -128,9 +150,9 @@ export const api = {
     request<TaskTemplate>('/task-templates', { body }),
   deleteTemplate: (id: string) =>
     request<void>(`/task-templates/${id}`, { method: 'DELETE' }),
-  settings: () => request<{ labor_rate: number }>('/settings'),
-  updateSettings: (labor_rate: number) =>
-    request<{ labor_rate: number }>('/settings', { method: 'PATCH', body: { labor_rate } }),
+  settings: () => request<AppSettings>('/settings'),
+  updateSettings: (body: Partial<AppSettings>) =>
+    request<AppSettings>('/settings', { method: 'PATCH', body }),
 
   // search
   search: (q: string) => request<SearchHit[]>(`/search?q=${encodeURIComponent(q)}`),

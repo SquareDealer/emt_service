@@ -7,6 +7,7 @@ import { Vehicle } from '../entities/vehicle.entity';
 import { WorkOrdersService } from './work-orders.service';
 import { WorkOrdersController } from './work-orders.controller';
 import { PricingService } from './pricing.service';
+import { WorkOrderPdfService } from './pdf/work-order-pdf.service';
 import { SettingsModule } from '../settings/settings.module';
 import { TaskTemplatesModule } from '../task-templates/task-templates.module';
 
@@ -16,7 +17,7 @@ import { TaskTemplatesModule } from '../task-templates/task-templates.module';
     SettingsModule,
     TaskTemplatesModule,
   ],
-  providers: [WorkOrdersService, PricingService],
+  providers: [WorkOrdersService, PricingService, WorkOrderPdfService],
   controllers: [WorkOrdersController],
   exports: [WorkOrdersService, PricingService],
 })

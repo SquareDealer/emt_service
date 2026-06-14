@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Plus, Trash2, Gauge, ListChecks } from 'lucide-react';
+import { Check, Plus, Trash2, Gauge, ListChecks, Building2 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import { money } from '../../lib/format';
@@ -17,8 +17,35 @@ export function SettingsPage() {
   useEffect(() => { if (settings) setRate(String(settings.labor_rate)); }, [settings]);
 
   const mRate = useMutation({
-    mutationFn: (v: number) => api.updateSettings(v),
+    mutationFn: (v: number) => api.updateSettings({ labor_rate: v }),
     onSuccess: (r) => { qc.setQueryData(['settings'], r); toast('Ставка сохранена', 'success'); },
+    onError: (e) => toast((e as Error).message, 'error'),
+  });
+
+  // Company requisites + VAT — shown in the calculation PDF header/totals.
+  const [company, setCompany] = useState({ name: '', inn: '', address: '', phone: '' });
+  const [vat, setVat] = useState('0');
+  useEffect(() => {
+    if (settings) {
+      setCompany({
+        name: settings.company_name ?? '',
+        inn: settings.company_inn ?? '',
+        address: settings.company_address ?? '',
+        phone: settings.company_phone ?? '',
+      });
+      setVat(String(settings.vat_rate ?? 0));
+    }
+  }, [settings]);
+
+  const mCompany = useMutation({
+    mutationFn: () => api.updateSettings({
+      company_name: company.name,
+      company_inn: company.inn,
+      company_address: company.address,
+      company_phone: company.phone,
+      vat_rate: Number(vat),
+    }),
+    onSuccess: (r) => { qc.setQueryData(['settings'], r); toast('Реквизиты сохранены', 'success'); },
     onError: (e) => toast((e as Error).message, 'error'),
   });
 
@@ -47,7 +74,7 @@ export function SettingsPage() {
       <div className="page-head">
         <div>
           <h1 className="page-title">Настройки</h1>
-          <p className="page-sub">Ставка нормо-часа и шаблоны типовых работ</p>
+          <p className="page-sub">Ставка нормо-часа, реквизиты для документов и шаблоны типовых работ</p>
         </div>
       </div>
 
@@ -65,6 +92,46 @@ export function SettingsPage() {
             </div>
             <button className="btn btn-primary" style={{ alignSelf: 'flex-end' }} disabled={!rateChanged || mRate.isPending} onClick={() => mRate.mutate(Number(rate))}>
               {mRate.isPending ? <Spinner /> : <Check size={16} />} Сохранить
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="panel" style={{ marginBottom: 'var(--sp-5)' }}>
+        <div className="panel-head"><h2 className="panel-title"><Building2 size={16} className="muted" style={{ display: 'inline', verticalAlign: '-3px', marginRight: 6 }} />Реквизиты для документов</h2></div>
+        <div style={{ padding: 'var(--sp-4)' }} className="col gap-3">
+          <p className="text-sm muted" style={{ maxWidth: '60ch' }}>
+            Шапка и итоги печатной калькуляции (PDF), которая формируется по закрытому наряду.
+          </p>
+          <div className="field">
+            <label className="label">Название исполнителя</label>
+            <input className="input" value={company.name} placeholder="ИП Иванов / ООО «Татарин»" onChange={(e) => setCompany((c) => ({ ...c, name: e.target.value }))} />
+          </div>
+          <div className="row gap-2 wrap">
+            <div className="field grow" style={{ minWidth: 160 }}>
+              <label className="label">ИНН</label>
+              <input className="input tnum" value={company.inn} placeholder="—" onChange={(e) => setCompany((c) => ({ ...c, inn: e.target.value }))} inputMode="numeric" />
+            </div>
+            <div className="field grow" style={{ minWidth: 160 }}>
+              <label className="label">Телефон</label>
+              <input className="input tnum" value={company.phone} placeholder="+7…" onChange={(e) => setCompany((c) => ({ ...c, phone: e.target.value }))} />
+            </div>
+          </div>
+          <div className="field">
+            <label className="label">Адрес</label>
+            <input className="input" value={company.address} placeholder="г. …, ул. …" onChange={(e) => setCompany((c) => ({ ...c, address: e.target.value }))} />
+          </div>
+          <div className="row gap-2" style={{ alignItems: 'flex-end' }}>
+            <div className="field" style={{ width: 200 }}>
+              <label className="label">Ставка НДС</label>
+              <select className="select" value={vat} onChange={(e) => setVat(e.target.value)}>
+                <option value="0">Без НДС (УСН)</option>
+                <option value="10">НДС 10%</option>
+                <option value="20">НДС 20%</option>
+              </select>
+            </div>
+            <button className="btn btn-primary" style={{ alignSelf: 'flex-end' }} disabled={mCompany.isPending} onClick={() => mCompany.mutate()}>
+              {mCompany.isPending ? <Spinner /> : <Check size={16} />} Сохранить
             </button>
           </div>
         </div>

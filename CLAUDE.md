@@ -57,17 +57,26 @@ Enums: `work_order_status`(scheduled→in_progress→waiting→done→closed), `
 
 ```
 entities/        client, vehicle, work-order, labor-line, part-line, task-template, user, setting
-migrations/      Init (всё DDL+enum+индексы), AddWorkOrderNotes
-common/          phone.util (нормализация 8→+7), numeric.transformer (numeric→number), public.decorator
+migrations/      Init (всё DDL+enum+индексы), AddWorkOrderNotes, AddWorkOrderDocNumber (seq+col)
+common/          phone.util, numeric.transformer, public.decorator, rubles-in-words (сумма прописью)
 auth/            JWT (owner login), глобальный JwtAuthGuard + @Public() на /health, /auth/login
 clients/         CRUD + import/clients-import.service (UTF-8/CP1251, ,/;, дедуп по телефону, отчёт)
-vehicles/  work-orders/ (pricing.service, calendar, lines, close)  task-templates/  settings/  search/
+vehicles/  work-orders/ (pricing.service, pdf/work-order-pdf.service, calendar, lines, close)
+task-templates/  settings/ (labor_rate + company_* + vat_rate)  search/
 seed/            авто-сид owner + labor_rate + шаблоны (onApplicationBootstrap, идемпотентно)
+assets/fonts/    DejaVuSans[-Bold].ttf — кириллица для PDF (читаются из process.cwd() в рантайме)
 ```
 
 API (всё под JWT кроме `/health`, `/auth/login`): `/clients` (+`/import`, `/:id/vehicles`),
-`/vehicles`, `/work-orders` (+`/board`, `/calendar`, `/:id/labor|parts`, `/:id/status`, `/:id/close`),
-`/task-templates`, `/settings`, `/search?q=`.
+`/vehicles`, `/work-orders` (+`/board`, `/calendar`, `/:id/labor|parts`, `/:id/status`, `/:id/close`,
+`/:id/pdf` — калькуляция, только для closed), `/task-templates`, `/settings`, `/search?q=`.
+
+- **PDF-калькуляция:** `GET /work-orders/:id/pdf` (pdfmake) рендерит «Предварительную калькуляцию»
+  (образец `Васильев.pdf`) из зафиксированной сметы. `doc_number` — последовательный номер,
+  присваивается при первой заморозке (`assignDocNumber`, стабилен при reopen/reclose; для
+  закрытых до миграции — лениво при первой печати). НДС (`vat_rate` 0/10/20) и реквизиты
+  (`company_*`) — в Settings; ставка НДС считается «в составе суммы» (`total×rate/(100+rate)`).
+  Построчных скидок нет → скидка наряда идёт в «Сумма скидок».
 
 ## Структура frontend (`client/src/`)
 
@@ -88,7 +97,8 @@ index.css  дизайн-токены (OKLCH, light/dark via [data-theme]), ко�
 npx tsc --noEmit && npm test && npm run lint -- --max-warnings=0 && npm run build   # backend
 cd client && npm run typecheck && npm run lint && npm run build                       # client
 ```
-- Unit: `pricing.service` (override/скидка/округление), `clients-import.service` (телефон/дата/дедуп/кодировка).
+- Unit: `pricing.service` (override/скидка/округление), `clients-import.service` (телефон/дата/дедуп/кодировка),
+  `rubles-in-words` (род/склонение, копейки) — 38 тестов.
 - Acceptance AC-1..10 — в `checks.md` (требует psql+jq; на этом хосте проверялось Node-скриптом).
 - Backend tsconfig исключает `client/` (иначе root-tsc подхватывает .tsx).
 
@@ -102,12 +112,17 @@ cd client && npm run typecheck && npm run lint && npm run build                 
 
 ## Вне MVP (модель готова, фич нет)
 
-PDF-документы (рендер из WorkOrder+строк), Telegram-бот (вызовет сервисы, `source=telegram_bot`),
-отчёты выручки (`total_frozen` + `imported_*`), каталог деталей (`catalog_number`), доп. роли/мастера
-(`user_role` + `assigned_master_id` уже есть).
+Telegram-бот (вызовет сервисы, `source=telegram_bot`), отчёты выручки (`total_frozen` + `imported_*`),
+каталог деталей (`catalog_number`), доп. роли/мастера (`user_role` + `assigned_master_id` уже есть).
+PDF-калькуляция — **реализована** (см. выше). Не охвачено в PDF: учёт оплат (Оплачено всегда 0.00),
+рекомендованные работы/запчасти (пустые таблицы), логотип-картинка (текстовая шапка «STO»).
 
 ## Состояние сессии (последнее)
 
+- **PDF-калькуляция:** кнопка «Сгенерировать отчёт» в редакторе закрытого наряда → скачивает
+  PDF (`GET /:id/pdf`, pdfmake + DejaVu). Номер `doc_number` (миграция+sequence). Реквизиты
+  компании + ставка НДС — на экране Настройки. E2E проверено: кириллица, НДС-блок, сумма
+  прописью, 400 для незакрытого. Проверка `node dist/main.js` + миграция на старте.
 - Построены backend + frontend целиком; пройден adversarial-review (8 находок исправлено:
   fail-fast JWT-секрет, заморозка при drag-close, и др.).
 - UX-фиксы наряда: кнопка «Сохранить» (toast+назад) над «Закрыть и зафиксировать»; контекстный

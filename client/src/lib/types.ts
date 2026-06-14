@@ -67,10 +67,20 @@ export interface WorkOrder {
   total_cached: number;
   total_frozen: number | null;
   closed_at: string | null;
+  doc_number: number | null;
   created_at: string;
   vehicle?: Vehicle & { client?: Client };
   labor_lines?: LaborLine[];
   part_lines?: PartLine[];
+}
+
+export interface AppSettings {
+  labor_rate: number;
+  company_name: string;
+  company_inn: string;
+  company_address: string;
+  company_phone: string;
+  vat_rate: number;
 }
 
 export interface TaskTemplate {

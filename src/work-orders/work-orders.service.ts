@@ -10,6 +10,7 @@ import { LaborLine } from '../entities/labor-line.entity';
 import { PartLine } from '../entities/part-line.entity';
 import { Vehicle } from '../entities/vehicle.entity';
 import { PricingService } from './pricing.service';
+import { WorkOrderPdfService } from './pdf/work-order-pdf.service';
 import { SettingsService } from '../settings/settings.service';
 import { TaskTemplatesService } from '../task-templates/task-templates.service';
 import {
@@ -33,7 +34,28 @@ export class WorkOrdersService {
     private readonly pricing: PricingService,
     private readonly settings: SettingsService,
     private readonly templates: TaskTemplatesService,
+    private readonly pdf: WorkOrderPdfService,
   ) {}
+
+  /** Build the calculation PDF for a frozen order. Filename is ASCII-only. */
+  async renderPdf(id: string): Promise<{ buffer: Buffer; filename: string }> {
+    let wo = await this.findOne(id);
+    if (wo.status !== 'closed') {
+      throw new BadRequestException(
+        'Наряд не зафиксирован: PDF доступен после закрытия',
+      );
+    }
+    // Orders closed before doc numbering existed have no number — assign on
+    // first print (idempotent; normal closes already get one at freeze time).
+    if (wo.doc_number == null) {
+      await this.assignDocNumber(id);
+      wo = await this.findOne(id);
+    }
+    const settings = await this.settings.getDocSettings();
+    const buffer = await this.pdf.build(wo, settings);
+    const filename = `kalkulyaciya-${wo.doc_number ?? wo.id.slice(0, 8)}.pdf`;
+    return { buffer, filename };
+  }
 
   async create(dto: CreateWorkOrderDto): Promise<WorkOrder> {
     const vehicle = await this.vehicleRepo.findOne({ where: { id: dto.vehicle_id } });
@@ -226,6 +248,7 @@ export class WorkOrdersService {
       total_frozen: total,
       closed_at: new Date(),
     });
+    await this.assignDocNumber(id);
     return this.findOne(id);
   }
 
@@ -259,10 +282,27 @@ export class WorkOrdersService {
     if (next === 'closed' && prev !== 'closed') {
       const total = await this.recompute(id);
       await this.repo.update(id, { total_frozen: total, closed_at: new Date() });
+      await this.assignDocNumber(id);
     } else if (next !== 'closed' && prev === 'closed') {
       await this.repo.update(id, { total_frozen: null, closed_at: null });
       await this.recompute(id);
     }
+  }
+
+  /**
+   * Assign the sequential document number on first freeze. Idempotent: once set,
+   * re-opening/re-closing keeps the same number (the PDF must stay stable).
+   */
+  private async assignDocNumber(id: string): Promise<void> {
+    const wo = await this.repo.findOne({
+      where: { id },
+      select: { id: true, doc_number: true },
+    });
+    if (!wo || wo.doc_number != null) return;
+    const rows = await this.repo.query(
+      `SELECT nextval('work_order_doc_number_seq') AS n`,
+    );
+    await this.repo.update(id, { doc_number: Number(rows[0].n) });
   }
 
   private async recompute(id: string): Promise<number> {
