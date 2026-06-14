@@ -1,0 +1,52 @@
+.drop {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-8) var(--sp-4);
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+  text-align: center;
+}
+.drop:hover, .drop.over { border-color: var(--primary); background: var(--primary-wash); }
+.drop.busy { cursor: default; }
+.drop-icon {
+  width: 52px; height: 52px; border-radius: var(--r-md);
+  background: var(--primary-wash); color: var(--primary);
+  display: grid; place-items: center; margin-bottom: var(--sp-1);
+}
+.drop-title { font-size: var(--text-base); font-weight: 600; }
+
+.import-err {
+  display: flex; align-items: center; gap: var(--sp-2);
+  margin-top: var(--sp-4); padding: var(--sp-3) var(--sp-4);
+  background: var(--danger-wash); color: var(--danger);
+  border-radius: var(--r-md); font-size: var(--text-sm); font-weight: 500;
+}
+
+.report { margin-top: var(--sp-5); }
+.report-stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--sp-3);
+}
+.report-stat {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-4);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md);
+}
+.report-stat.ok { color: var(--success); }
+.report-stat.ok svg { flex-shrink: 0; }
+.report-stat[data-warn='true'] { color: var(--accent); }
+.report-num { font-size: var(--text-xl); font-weight: 600; line-height: 1.1; }
+.report-lbl { font-size: var(--text-xs); color: var(--muted); }
+.report-stat .col { color: var(--ink); }
+.report-stat.ok .col .report-num, .report-stat[data-warn='true'] .col .report-num { color: inherit; }
+
+.format-card { margin-top: var(--sp-6); }
+.format-cols {
+  display: block; padding: var(--sp-3); background: var(--surface-2);
+  border-radius: var(--r-sm); font-size: var(--text-sm); color: var(--ink-soft);
+}
+.format-list { display: flex; flex-direction: column; gap: var(--sp-1); padding-left: var(--sp-4); }
+.format-list li { list-style: disc; }

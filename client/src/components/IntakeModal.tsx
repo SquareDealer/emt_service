@@ -1,0 +1,316 @@
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Check, User, Car, Wrench, Search } from 'lucide-react';
+import { api } from '../lib/api';
+import { useToast } from '../lib/toast';
+import { phone as fmtPhone } from '../lib/format';
+import type { Vehicle } from '../lib/types';
+import { Modal, Spinner } from './ui';
+
+type Picked = { id: string; full_name: string; phone: string };
+
+const STEPS = [
+  { n: 1, label: 'Клиент', icon: User },
+  { n: 2, label: 'Автомобиль', icon: Car },
+  { n: 3, label: 'Работа', icon: Wrench },
+];
+
+export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const navigate = useNavigate();
+  const toast = useToast();
+  const qc = useQueryClient();
+
+  const [step, setStep] = useState(1);
+  const [busy, setBusy] = useState(false);
+
+  // step 1
+  const [clientMode, setClientMode] = useState<'new' | 'existing'>('new');
+  const [picked, setPicked] = useState<Picked | null>(null);
+  const [q, setQ] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+
+  // step 2
+  const [vehMode, setVehMode] = useState<'new' | 'existing'>('new');
+  const [vehId, setVehId] = useState<string>('');
+  const [vin, setVin] = useState('');
+  const [model, setModel] = useState('');
+  const [plate, setPlate] = useState('');
+  const [year, setYear] = useState('');
+  const [mileage, setMileage] = useState('');
+
+  // step 3
+  const [title, setTitle] = useState('');
+  const [scheduledAt, setScheduledAt] = useState('');
+  const [duration, setDuration] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setStep(1);
+      setClientMode('new');
+      setPicked(null);
+      setQ('');
+      setFullName('');
+      setPhone('');
+      setVehMode('new');
+      setVehId('');
+      setVin('');
+      setModel('');
+      setPlate('');
+      setYear('');
+      setMileage('');
+      setTitle('');
+      setScheduledAt('');
+      setDuration('');
+    }
+  }, [open]);
+
+  const { data: searchHits, isFetching: searching } = useQuery({
+    queryKey: ['intake-search', q],
+    queryFn: () => api.search(q.trim()),
+    enabled: open && clientMode === 'existing' && q.trim().length >= 1,
+  });
+  const clientHits = (searchHits ?? []).filter((h) => h.type === 'client');
+
+  const { data: existingVehicles } = useQuery({
+    queryKey: ['intake-vehicles', picked?.id],
+    queryFn: () => api.clientVehicles(picked!.id),
+    enabled: open && step >= 2 && clientMode === 'existing' && !!picked?.id,
+  });
+
+  const step1Valid =
+    clientMode === 'existing'
+      ? !!picked
+      : fullName.trim().length > 0 && phone.trim().length > 0;
+  const step2Valid =
+    vehMode === 'existing'
+      ? !!vehId
+      : !!(vin.trim() || plate.trim() || model.trim());
+
+  const next = () => {
+    if (step === 1 && !step1Valid) return;
+    if (step === 2 && !step2Valid) return;
+    // if existing client has no vehicles, force new
+    if (step === 1 && clientMode === 'new') setVehMode('new');
+    setStep((s) => Math.min(s + 1, 3));
+  };
+
+  const submit = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      let clientId = picked?.id;
+      if (clientMode === 'new') {
+        const c = await api.createClient({ full_name: fullName.trim(), phone: phone.trim() });
+        clientId = c.id;
+      }
+      if (!clientId) throw new Error('Не выбран клиент');
+
+      let vehicleId = vehId;
+      if (vehMode === 'new' || !vehicleId) {
+        const v = await api.createVehicle({
+          client_id: clientId,
+          vin: vin.trim() || undefined,
+          model: model.trim() || undefined,
+          plate: plate.trim() || undefined,
+          year: year ? Number(year) : undefined,
+          mileage: mileage ? Number(mileage) : undefined,
+        } as Partial<Vehicle>);
+        vehicleId = v.id;
+      }
+
+      const wo = await api.createWorkOrder({
+        vehicle_id: vehicleId,
+        title: title.trim() || undefined,
+        scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
+        scheduled_duration_min: duration ? Number(duration) : undefined,
+      } as never);
+
+      qc.invalidateQueries();
+      toast('Заказ-наряд создан', 'success');
+      onClose();
+      navigate(`/work-orders/${wo.id}`);
+    } catch (e) {
+      toast((e as Error).message || 'Не удалось создать', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Новый приём"
+      width={560}
+      footer={
+        <>
+          {step > 1 && (
+            <button className="btn btn-ghost" onClick={() => setStep((s) => s - 1)} disabled={busy}>
+              Назад
+            </button>
+          )}
+          <div className="grow" />
+          {step < 3 ? (
+            <button className="btn btn-primary" onClick={next} disabled={step === 1 ? !step1Valid : !step2Valid}>
+              Далее
+            </button>
+          ) : (
+            <button className="btn btn-primary" onClick={submit} disabled={busy}>
+              {busy ? <Spinner /> : <Check size={16} />}
+              Создать наряд
+            </button>
+          )}
+        </>
+      }
+    >
+      <div className="stepper">
+        {STEPS.map((s) => (
+          <div key={s.n} className="step" data-state={step === s.n ? 'current' : step > s.n ? 'done' : 'todo'}>
+            <span className="step-dot">{step > s.n ? <Check size={13} /> : <s.icon size={14} />}</span>
+            <span className="step-label">{s.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {step === 1 && (
+        <div className="col gap-4">
+          <div className="seg">
+            <button className="seg-btn" data-on={clientMode === 'new'} onClick={() => setClientMode('new')}>
+              Новый клиент
+            </button>
+            <button className="seg-btn" data-on={clientMode === 'existing'} onClick={() => setClientMode('existing')}>
+              Существующий
+            </button>
+          </div>
+
+          {clientMode === 'new' ? (
+            <>
+              <div className="field">
+                <label className="label">ФИО</label>
+                <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Иванов Иван" autoFocus />
+              </div>
+              <div className="field">
+                <label className="label">Телефон</label>
+                <input className="input mono" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+7 999 123-45-67" />
+              </div>
+            </>
+          ) : (
+            <div className="col gap-2">
+              <div className="palette-input" style={{ border: '1px solid var(--border-strong)', borderRadius: 'var(--r-sm)', padding: 'var(--sp-2) var(--sp-3)' }}>
+                <Search size={16} className="muted" />
+                <input style={{ fontSize: 'var(--text-sm)', border: 'none', outline: 'none', background: 'none', flex: 1, color: 'var(--ink)' }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Найти клиента…" autoFocus />
+                {searching && <Spinner />}
+              </div>
+              <div className="col" style={{ maxHeight: 220, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)' }}>
+                {clientHits.map((h) => (
+                  <button
+                    key={h.id}
+                    className="list-row"
+                    style={{ gridTemplateColumns: '1fr auto', borderRadius: 0 }}
+                    aria-current={picked?.id === h.id}
+                    onClick={() => setPicked({ id: h.id, full_name: h.full_name!, phone: h.phone! })}
+                  >
+                    <div className="col" style={{ minWidth: 0 }}>
+                      <span className="fw-500 truncate">{h.full_name}</span>
+                      <span className="text-xs muted mono">{fmtPhone(h.phone)}</span>
+                    </div>
+                    {picked?.id === h.id && <Check size={16} className="muted" />}
+                  </button>
+                ))}
+                {q.trim() && !searching && clientHits.length === 0 && (
+                  <div className="empty" style={{ padding: 'var(--sp-5)' }}>
+                    <span className="text-sm muted">Не найдено — заведите как нового</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {step === 2 && (
+        <div className="col gap-4">
+          {clientMode === 'existing' && (existingVehicles?.length ?? 0) > 0 && (
+            <div className="seg">
+              <button className="seg-btn" data-on={vehMode === 'existing'} onClick={() => setVehMode('existing')}>
+                Из гаража
+              </button>
+              <button className="seg-btn" data-on={vehMode === 'new'} onClick={() => setVehMode('new')}>
+                Новое авто
+              </button>
+            </div>
+          )}
+
+          {vehMode === 'existing' && clientMode === 'existing' ? (
+            <div className="col" style={{ border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', overflow: 'hidden' }}>
+              {(existingVehicles ?? []).map((v) => (
+                <button
+                  key={v.id}
+                  className="list-row"
+                  style={{ gridTemplateColumns: '1fr auto', borderRadius: 0 }}
+                  aria-current={vehId === v.id}
+                  onClick={() => setVehId(v.id)}
+                >
+                  <div className="col" style={{ minWidth: 0 }}>
+                    <span className="fw-500 truncate">{v.model || 'MINI'} · <span className="mono">{v.plate || v.vin || '—'}</span></span>
+                    <span className="text-xs muted">{v.year ?? ''} {v.mileage ? `· ${v.mileage} км` : ''}</span>
+                  </div>
+                  {vehId === v.id && <Check size={16} className="muted" />}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <>
+              <div className="grid-2">
+                <div className="field">
+                  <label className="label">Модель / поколение</label>
+                  <input className="input" value={model} onChange={(e) => setModel(e.target.value)} placeholder="R56, F56…" autoFocus />
+                </div>
+                <div className="field">
+                  <label className="label">Госномер</label>
+                  <input className="input mono" value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="А123ВС777" />
+                </div>
+              </div>
+              <div className="field">
+                <label className="label">VIN</label>
+                <input className="input mono" value={vin} onChange={(e) => setVin(e.target.value)} placeholder="WMW…" />
+              </div>
+              <div className="grid-2">
+                <div className="field">
+                  <label className="label">Год</label>
+                  <input className="input tnum" value={year} onChange={(e) => setYear(e.target.value.replace(/\D/g, ''))} placeholder="2014" inputMode="numeric" />
+                </div>
+                <div className="field">
+                  <label className="label">Пробег, км</label>
+                  <input className="input tnum" value={mileage} onChange={(e) => setMileage(e.target.value.replace(/\D/g, ''))} placeholder="120000" inputMode="numeric" />
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {step === 3 && (
+        <div className="col gap-4">
+          <div className="field">
+            <label className="label">Что делаем (необязательно)</label>
+            <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ТО, диагностика подвески…" autoFocus />
+          </div>
+          <div className="grid-2">
+            <div className="field">
+              <label className="label">Дата и время</label>
+              <input className="input" type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+            </div>
+            <div className="field">
+              <label className="label">Длительность, мин</label>
+              <input className="input tnum" value={duration} onChange={(e) => setDuration(e.target.value.replace(/\D/g, ''))} placeholder="60" inputMode="numeric" />
+            </div>
+          </div>
+          <p className="text-xs muted">Строки работ и запчасти добавите в смете после создания наряда.</p>
+        </div>
+      )}
+    </Modal>
+  );
+}

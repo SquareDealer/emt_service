@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+.env
+*.log
+client/node_modules
+client/dist
+
+# local tooling / vendored skills (not app code)
+.agents/
+.claude/
