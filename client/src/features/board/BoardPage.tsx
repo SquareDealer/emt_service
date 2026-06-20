@@ -12,9 +12,11 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
-import { Car, GripVertical } from 'lucide-react';
+import { Car, GripVertical, UserCog } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
+import { useAuth } from '../../lib/auth';
+import { canAssignMaster } from '../../lib/roles';
 import { money, timeOnly, dateShort } from '../../lib/format';
 import { STATUS_LABEL, STATUS_ORDER } from '../../lib/types';
 import type { WorkOrder, WorkOrderStatus } from '../../lib/types';
@@ -28,6 +30,8 @@ export function BoardPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const showMaster = canAssignMaster(user?.role);
   const [cols, setCols] = useState<Columns>(EMPTY);
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -102,11 +106,11 @@ export function BoardPage() {
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
           <div className="board">
             {STATUS_ORDER.map((s) => (
-              <Column key={s} status={s} items={cols[s]} onOpen={(id) => navigate(`/work-orders/${id}`, { state: { back: { to: '/board', label: 'Доска' } } })} />
+              <Column key={s} status={s} items={cols[s]} showMaster={showMaster} onOpen={(id) => navigate(`/work-orders/${id}`, { state: { back: { to: '/board', label: 'Доска' } } })} />
             ))}
           </div>
           <DragOverlay dropAnimation={null}>
-            {activeWo ? <Card wo={activeWo} dragging /> : null}
+            {activeWo ? <Card wo={activeWo} showMaster={showMaster} dragging /> : null}
           </DragOverlay>
         </DndContext>
       )}
@@ -114,7 +118,7 @@ export function BoardPage() {
   );
 }
 
-function Column({ status, items, onOpen }: { status: WorkOrderStatus; items: WorkOrder[]; onOpen: (id: string) => void }) {
+function Column({ status, items, showMaster, onOpen }: { status: WorkOrderStatus; items: WorkOrder[]; showMaster: boolean; onOpen: (id: string) => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   return (
     <div className="board-col">
@@ -125,7 +129,7 @@ function Column({ status, items, onOpen }: { status: WorkOrderStatus; items: Wor
       </div>
       <div ref={setNodeRef} className={`board-col-body ${isOver ? 'over' : ''}`}>
         {items.map((w) => (
-          <DraggableCard key={w.id} wo={w} onOpen={onOpen} />
+          <DraggableCard key={w.id} wo={w} showMaster={showMaster} onOpen={onOpen} />
         ))}
         {items.length === 0 && <div className="board-empty">пусто</div>}
       </div>
@@ -133,7 +137,7 @@ function Column({ status, items, onOpen }: { status: WorkOrderStatus; items: Wor
   );
 }
 
-function DraggableCard({ wo, onOpen }: { wo: WorkOrder; onOpen: (id: string) => void }) {
+function DraggableCard({ wo, showMaster, onOpen }: { wo: WorkOrder; showMaster: boolean; onOpen: (id: string) => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: wo.id });
   // Listeners on the whole card -> drag from anywhere. PointerSensor's 5px
   // activation distance lets a plain click (no movement) still open the order.
@@ -146,12 +150,12 @@ function DraggableCard({ wo, onOpen }: { wo: WorkOrder; onOpen: (id: string) => 
       className="board-card-drag"
       style={{ opacity: isDragging ? 0.35 : 1 }}
     >
-      <Card wo={wo} />
+      <Card wo={wo} showMaster={showMaster} />
     </div>
   );
 }
 
-function Card({ wo, dragging }: { wo: WorkOrder; dragging?: boolean }) {
+function Card({ wo, showMaster, dragging }: { wo: WorkOrder; showMaster?: boolean; dragging?: boolean }) {
   const total = wo.status === 'closed' ? wo.total_frozen ?? wo.total_cached : wo.total_cached;
   return (
     <div className={`board-card ${dragging ? 'is-dragging' : ''}`}>
@@ -170,6 +174,11 @@ function Card({ wo, dragging }: { wo: WorkOrder; dragging?: boolean }) {
         <span className="mono tnum fw-500">{money(total)}</span>
         {wo.scheduled_at && <span className="board-card-time">{dateShort(wo.scheduled_at)} {timeOnly(wo.scheduled_at)}</span>}
       </div>
+      {showMaster && wo.assigned_master && (
+        <div className="board-card-master truncate" title={wo.assigned_master.name}>
+          <UserCog size={12} /> {wo.assigned_master.name}
+        </div>
+      )}
     </div>
   );
 }

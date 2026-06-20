@@ -1,6 +1,6 @@
 # CLAUDE.md — Татарин CRM
 
-CRM для СТО (MINI Cooper), один владелец-мастер, ~300 клиентов. Спека и артефакты:
+CRM для СТО (MINI Cooper), владелец + мастера/приёмщики (роли), ~300 клиентов. Спека и артефакты:
 `spec.md`, `data-model.md`, `plan.md`, `checks.md`. Стратегия/визуал: `PRODUCT.md`, `DESIGN.md`.
 
 ## Стек
@@ -49,17 +49,25 @@ Settings(key-value: labor_rate)
   `csv_import` (импорт), `telegram_bot` (зарезервирован). Импорт пишет `imported_deals_count/sum`
   и реальный `created_at` из CSV.
 - Скидка только на уровне наряда (`discount_type` percent/fixed + `discount_value`).
+- **Роли и видимость нарядов:** `owner`/`master_receptionist` видят ВСЕ наряды и назначают мастера;
+  `master` видит/правит только наряды с `assigned_master_id == он сам` (списки/доска/календарь, чужой
+  по id → 404). Скоупинг — в `WorkOrdersService` (метод `scope` + `assertAccess`), не на фронте.
+  Мастер создаёт наряд → авто-назначается себе; смену мастера на закрытом наряде сервис блокирует.
+  `users.is_active=false` → запрет логина и проверки токена; назначить можно только активного юзера.
 
 Enums: `work_order_status`(scheduled→in_progress→waiting→done→closed), `discount_type`,
-`user_role`(owner, расширяемо), `client_source`. Поиск: `pg_trgm` GIN по ФИО/телефону/VIN/госномеру.
+`user_role`(owner, master_receptionist, master), `client_source`. Поиск: `pg_trgm` GIN по ФИО/телефону/VIN/госномеру.
 
 ## Структура backend (`src/`)
 
 ```
-entities/        client, vehicle, work-order, labor-line, part-line, task-template, user, setting
-migrations/      Init (всё DDL+enum+индексы), AddWorkOrderNotes, AddWorkOrderDocNumber (seq+col)
+entities/        client, vehicle, work-order, labor-line, part-line, task-template, user (role+is_active), setting
+migrations/      Init (всё DDL+enum+индексы), AddWorkOrderNotes, AddWorkOrderDocNumber (seq+col),
+                 AddUserRolesAndActive (enum ADD VALUE master/master_receptionist + is_active + idx)
 common/          phone.util, numeric.transformer, public.decorator, rubles-in-words (сумма прописью)
-auth/            JWT (owner login), глобальный JwtAuthGuard + @Public() на /health, /auth/login
+auth/            JWT (login), глобальный JwtAuthGuard + @Public() на /health,/auth/login;
+                 @CurrentUser() (req.user), @Roles()+RolesGuard (точечно, напр. на UsersController)
+users/           UsersService + UsersController (CRUD, owner-only; список — owner+приёмщик)
 clients/         CRUD + import/clients-import.service (UTF-8/CP1251, ,/;, дедуп по телефону, отчёт)
 vehicles/  work-orders/ (pricing.service, pdf/work-order-pdf.service, calendar, lines, close)
 task-templates/  settings/ (labor_rate + company_* + vat_rate)  search/
@@ -69,7 +77,9 @@ assets/fonts/    DejaVuSans[-Bold].ttf — кириллица для PDF (чит
 
 API (всё под JWT кроме `/health`, `/auth/login`): `/clients` (+`/import`, `/:id/vehicles`),
 `/vehicles`, `/work-orders` (+`/board`, `/calendar`, `/:id/labor|parts`, `/:id/status`, `/:id/close`,
-`/:id/pdf` — калькуляция, только для closed), `/task-templates`, `/settings`, `/search?q=`.
+`/:id/pdf` — калькуляция, только для closed; все скоупятся по роли через `@CurrentUser`),
+`/users` (GET — owner+приёмщик; POST/PATCH/DELETE — owner; DELETE = hard-delete с обнулением
+`assigned_master_id` в нарядах), `/task-templates`, `/settings`, `/search?q=`.
 
 - **PDF-калькуляция:** `GET /work-orders/:id/pdf` (pdfmake) рендерит «Предварительную калькуляцию»
   (образец `Васильев.pdf`) из зафиксированной сметы. `doc_number` — последовательный номер,
@@ -81,11 +91,17 @@ API (всё под JWT кроме `/health`, `/auth/login`): `/clients` (+`/impo
 ## Структура frontend (`client/src/`)
 
 ```
-lib/      api.ts (fetch+JWT), auth.tsx, types.ts, format.ts, toast.tsx, theme.ts, query.ts
-components/ AppShell (sidebar+topbar), GlobalSearch (⌘K палитра), IntakeModal (клиент→авто→работа), ui.tsx (Modal/StatusPill/...)
-features/  auth/ clients/(список+карточка) work-orders/(редактор сметы) board/(dnd-kit) calendar/ import/ settings/
-index.css  дизайн-токены (OKLCH, light/dark via [data-theme]), компонентные классы
+lib/      api.ts (fetch+JWT, +users CRUD), auth.tsx, roles.ts (canAssignMaster/canManageUsers/isPlainMaster),
+          types.ts (UserRole/User, WorkOrder.assigned_master), schedule.ts, format.ts, toast.tsx, theme.ts
+components/ AppShell (sidebar+topbar; nav скрывает «Настройки» у master, «Импорт» у не-owner),
+          GlobalSearch (⌘K), IntakeModal, ScheduleTimeline (таймлайн + бейдж мастера), ui.tsx (Modal/StatusPill/...)
+features/  auth/ clients/ work-orders/(редактор + селектор мастера) board/(бейдж мастера) calendar/(бейдж) import/ settings/(панель «Пользователи», owner)
+index.css  дизайн-токены (OKLCH, light/dark via [data-theme]), компонентные классы (.user-row и др.)
 ```
+
+Роли на фронте: `useAuth().user.role` + хелперы `lib/roles.ts`. Селектор/бейдж мастера видны только
+owner+приёмщику (`canAssignMaster`); раздел «Пользователи» — только owner (`canManageUsers`).
+Фильтрация нарядов — на бэке (фронт рендерит что пришло), бейдж мастера в календаре — на строке времени.
 
 Дизайн: Linear-like (тихий/плотный/точный), стальной-синий primary + латунный accent,
 светлая по умолчанию + тёмная по тумблеру. Полная спека — `DESIGN.md`. Навигация на наряд
@@ -98,7 +114,8 @@ npx tsc --noEmit && npm test && npm run lint -- --max-warnings=0 && npm run buil
 cd client && npm run typecheck && npm run lint && npm run build                       # client
 ```
 - Unit: `pricing.service` (override/скидка/округление), `clients-import.service` (телефон/дата/дедуп/кодировка),
-  `rubles-in-words` (род/склонение, копейки) — 38 тестов.
+  `rubles-in-words` (род/склонение, копейки), `settings.service` (расписание), `users.service`
+  (хеш пароля, уникальность логина, защита последнего владельца, само-деактивация, isAssignable) — 52 теста.
 - Acceptance AC-1..10 — в `checks.md` (требует psql+jq; на этом хосте проверялось Node-скриптом).
 - Backend tsconfig исключает `client/` (иначе root-tsc подхватывает .tsx).
 
@@ -113,12 +130,24 @@ cd client && npm run typecheck && npm run lint && npm run build                 
 ## Вне MVP (модель готова, фич нет)
 
 Telegram-бот (вызовет сервисы, `source=telegram_bot`), отчёты выручки (`total_frozen` + `imported_*`),
-каталог деталей (`catalog_number`), доп. роли/мастера (`user_role` + `assigned_master_id` уже есть).
-PDF-калькуляция — **реализована** (см. выше). Не охвачено в PDF: учёт оплат (Оплачено всегда 0.00),
+каталог деталей (`catalog_number`). Роли/мастера (`owner`/`master_receptionist`/`master`) —
+**реализованы** (см. «Архитектура данных» + `/users`). PDF-калькуляция — **реализована** (см. выше).
+Не охвачено в PDF: учёт оплат (Оплачено всегда 0.00),
 рекомендованные работы/запчасти (пустые таблицы), логотип-картинка (текстовая шапка «STO»).
 
 ## Состояние сессии (последнее)
 
+- **Роли «Мастер» и «Мастер-приёмщик»** (ветка `feature/booking-timeline`): миграция
+  `AddUserRolesAndActive` (enum `ADD VALUE` + `is_active` + индекс на `assigned_master_id`).
+  Бэк: `@CurrentUser`/`@Roles`/`RolesGuard`, скоупинг нарядов по роли, авто-назначение при создании
+  мастером, запрет смены мастера на закрытом, `is_active` блокирует логин/токен, `/users` CRUD
+  (owner), hard-delete с обнулением FK. Фронт: раздел «Пользователи» (Настройки, owner — создание/
+  редактирование имени/роль/пароль/вкл-выкл/удаление), селектор мастера в наряде (owner/приёмщик),
+  бейдж мастера на строке времени в календаре и под ценой на доске, скрытие «Настроек»/«Импорта» в
+  навигации. Баг-фикс: при перепривязке мастера загруженная ManyToOne-связь `assigned_master`
+  перезаписывала FK при `save` → `delete wo.assigned_master` перед сохранением. Проверки: 52 unit
+  (+`users.service.spec`), e2e на :3000 — скоупинг/404/403/перепривязка/закрытие/удаление зелёные.
+  Демо-стафф в dev-БД: `master`/`master`, `master2`/`master2`, `priemka`/`priemka` (+ legacy `anton`/`toxa`).
 - **PDF-калькуляция:** кнопка «Сгенерировать отчёт» в редакторе закрытого наряда → скачивает
   PDF (`GET /:id/pdf`, pdfmake + DejaVu). Номер `doc_number` (миграция+sequence). Реквизиты
   компании + ставка НДС — на экране Настройки. E2E проверено: кириллица, НДС-блок, сумма

@@ -12,6 +12,7 @@ import { Setting } from './entities/setting.entity';
 import { Init1718200000000 } from './migrations/1718200000000-Init';
 import { AddWorkOrderNotes1718300000000 } from './migrations/1718300000000-AddWorkOrderNotes';
 import { AddWorkOrderDocNumber1718400000000 } from './migrations/1718400000000-AddWorkOrderDocNumber';
+import { AddUserRolesAndActive1718500000000 } from './migrations/1718500000000-AddUserRolesAndActive';
 
 loadEnv();
 
@@ -30,6 +31,7 @@ export const migrations = [
   Init1718200000000,
   AddWorkOrderNotes1718300000000,
   AddWorkOrderDocNumber1718400000000,
+  AddUserRolesAndActive1718500000000,
 ];
 
 /** Standalone DataSource for the TypeORM CLI (migrations). */

@@ -1,27 +1,32 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import {
-  addDays,
-  addWeeks,
-  endOfWeek,
-  format,
-  isToday,
-  startOfWeek,
-} from 'date-fns';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { addDays, addWeeks, endOfWeek, format, startOfWeek } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { api } from '../../lib/api';
-import { money, timeOnly } from '../../lib/format';
-import { STATUS_LABEL } from '../../lib/types';
+import { useToast } from '../../lib/toast';
+import { useAuth } from '../../lib/auth';
+import { canAssignMaster } from '../../lib/roles';
 import type { WorkOrder } from '../../lib/types';
+import { hasConflict } from '../../lib/schedule';
+import type { TimelineCfg, TimelineEvent } from '../../lib/schedule';
+import { ScheduleTimeline } from '../../components/ScheduleTimeline';
 import { Spinner } from '../../components/ui';
 import './calendar.css';
 
 type View = 'week' | 'day';
 
+function eventTitle(w: WorkOrder): string {
+  return w.title?.trim() || `${w.vehicle?.model || 'MINI'} ${w.vehicle?.plate || ''}`.trim();
+}
+
 export function CalendarPage() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const { user } = useAuth();
+  const showMaster = canAssignMaster(user?.role);
   const [anchor, setAnchor] = useState(new Date());
   const [view, setView] = useState<View>('week');
 
@@ -33,25 +38,73 @@ export function CalendarPage() {
 
   const from = format(days[0], 'yyyy-MM-dd');
   const to = format(days[days.length - 1], 'yyyy-MM-dd');
+  const calKey = ['calendar', from, to];
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['calendar', from, to],
-    queryFn: () => api.calendar(from, to),
+  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.settings });
+  const { data, isLoading } = useQuery({ queryKey: calKey, queryFn: () => api.calendar(from, to) });
+
+  const defaultDur = settings?.default_appointment_min ?? 60;
+
+  const cfg: TimelineCfg = {
+    startHour: settings?.working_hours_start ?? 8,
+    endHour: settings?.working_hours_end ?? 20,
+    slotMin: settings?.slot_minutes ?? 30,
+    pxPerMin: view === 'day' ? 1.2 : 0.8,
+  };
+
+  const events: TimelineEvent[] = useMemo(
+    () =>
+      (data ?? [])
+        .filter((w) => w.scheduled_at)
+        .map((w) => ({
+          id: w.id,
+          start: new Date(w.scheduled_at as string),
+          durationMin: w.scheduled_duration_min ?? defaultDur,
+          status: w.status,
+          title: eventTitle(w),
+          subtitle: w.vehicle?.client?.full_name ?? '',
+          masterName: showMaster ? w.assigned_master?.name : undefined,
+        })),
+    [data, defaultDur, showMaster],
+  );
+
+  const mUpdate = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Partial<WorkOrder> }) =>
+      api.updateWorkOrder(id, body),
+    onMutate: async ({ id, body }) => {
+      await qc.cancelQueries({ queryKey: calKey });
+      const prev = qc.getQueryData<WorkOrder[]>(calKey);
+      qc.setQueryData<WorkOrder[]>(calKey, (old) =>
+        (old ?? []).map((w) => (w.id === id ? { ...w, ...body } : w)),
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(calKey, ctx.prev);
+      toast('Не удалось сохранить запись', 'error');
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['calendar'] });
+      qc.invalidateQueries({ queryKey: ['board'] });
+      qc.invalidateQueries({ queryKey: ['work-orders'] });
+    },
   });
 
-  const byDay = useMemo(() => {
-    const map = new Map<string, WorkOrder[]>();
-    for (const w of data ?? []) {
-      if (!w.scheduled_at) continue;
-      const key = format(new Date(w.scheduled_at), 'yyyy-MM-dd');
-      const arr = map.get(key) ?? [];
-      arr.push(w);
-      map.set(key, arr);
-    }
-    for (const arr of map.values())
-      arr.sort((a, b) => +new Date(a.scheduled_at!) - +new Date(b.scheduled_at!));
-    return map;
-  }, [data]);
+  const warnIfConflict = (proposed: TimelineEvent) => {
+    if (hasConflict(proposed, events)) toast('Пересечение с другой записью', 'info');
+  };
+
+  const onEventMove = (id: string, startISO: string) => {
+    const ev = events.find((e) => e.id === id);
+    if (ev) warnIfConflict({ ...ev, start: new Date(startISO) });
+    mUpdate.mutate({ id, body: { scheduled_at: startISO } });
+  };
+
+  const onEventResize = (id: string, durationMin: number) => {
+    const ev = events.find((e) => e.id === id);
+    if (ev) warnIfConflict({ ...ev, durationMin });
+    mUpdate.mutate({ id, body: { scheduled_duration_min: durationMin } });
+  };
 
   const move = (dir: number) =>
     setAnchor((d) => (view === 'day' ? addDays(d, dir) : addWeeks(d, dir)));
@@ -66,7 +119,7 @@ export function CalendarPage() {
       <div className="page-head">
         <div>
           <h1 className="page-title">Календарь</h1>
-          <p className="page-sub">Предстоящие и прошедшие работы по времени записи</p>
+          <p className="page-sub">Записи по времени и длительности — тяните, чтобы перенести или растянуть</p>
         </div>
         <div className="row gap-2">
           <div className="seg">
@@ -86,46 +139,24 @@ export function CalendarPage() {
       {isLoading ? (
         <div className="center" style={{ minHeight: 280 }}><Spinner size={22} /></div>
       ) : (
-        <div className={`cal-grid ${view}`}>
-          {days.map((d) => {
-            const key = format(d, 'yyyy-MM-dd');
-            const events = byDay.get(key) ?? [];
-            return (
-              <div key={key} className={`cal-day ${isToday(d) ? 'today' : ''}`}>
-                <div className="cal-day-head">
-                  <span className="cal-dow">{format(d, 'EEEEEE', { locale: ru })}</span>
-                  <span className={`cal-date ${isToday(d) ? 'is-today' : ''}`}>{format(d, 'd')}</span>
-                </div>
-                <div className="cal-events">
-                  {events.length === 0 ? (
-                    <div className="cal-empty" />
-                  ) : (
-                    events.map((w) => (
-                      <button
-                        key={w.id}
-                        className="cal-event"
-                        data-status={w.status}
-                        onClick={() => navigate(`/work-orders/${w.id}`, { state: { back: { to: '/calendar', label: 'Календарь' } } })}
-                        title={`${STATUS_LABEL[w.status]} · ${money(w.status === 'closed' ? w.total_frozen ?? w.total_cached : w.total_cached)}`}
-                      >
-                        <span className="cal-event-time mono">{timeOnly(w.scheduled_at)}</span>
-                        <span className="cal-event-title truncate">{w.title || `${w.vehicle?.model || 'MINI'} ${w.vehicle?.plate || ''}`}</span>
-                        <span className="cal-event-sub truncate">{w.vehicle?.client?.full_name ?? ''}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <ScheduleTimeline
+          days={days}
+          events={events}
+          cfg={cfg}
+          interactive
+          onEventClick={(id) =>
+            navigate(`/work-orders/${id}`, { state: { back: { to: '/calendar', label: 'Календарь' } } })
+          }
+          onEventMove={onEventMove}
+          onEventResize={onEventResize}
+        />
       )}
 
-      {!isLoading && (data?.length ?? 0) === 0 && (
-        <div className="empty" style={{ marginTop: 'calc(-1 * var(--sp-8))' }}>
+      {!isLoading && events.length === 0 && (
+        <div className="empty" style={{ marginTop: 'var(--sp-4)' }}>
           <CalendarDays />
-          <div className="empty-title">На этот период работ нет</div>
-          <div className="text-sm muted">Назначьте время записи в заказ-наряде, и он появится здесь.</div>
+          <div className="empty-title">На этот период записей нет</div>
+          <div className="text-sm muted">Назначьте время записи в заказ-наряде, и оно появится здесь.</div>
         </div>
       )}
     </div>

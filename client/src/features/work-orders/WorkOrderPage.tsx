@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { addDays, format, isSameDay } from 'date-fns';
+import { ru } from 'date-fns/locale';
 import {
   ArrowLeft,
   Plus,
@@ -12,12 +14,19 @@ import {
   Check,
   Car,
   CalendarClock,
+  CalendarSearch,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
   Save,
   StickyNote,
   FileDown,
+  UserCog,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
+import { useAuth } from '../../lib/auth';
+import { canAssignMaster } from '../../lib/roles';
 import {
   money,
   laborTotal,
@@ -27,7 +36,11 @@ import {
   dateTime,
 } from '../../lib/format';
 import { STATUS_LABEL, STATUS_ORDER } from '../../lib/types';
-import type { WorkOrder, WorkOrderStatus, DiscountType } from '../../lib/types';
+import type { AppSettings, User, WorkOrder, WorkOrderStatus, DiscountType } from '../../lib/types';
+import { downloadBlob } from '../../lib/download';
+import { hasConflict } from '../../lib/schedule';
+import type { TimelineCfg, TimelineEvent } from '../../lib/schedule';
+import { ScheduleTimeline, SELECTION_ID } from '../../components/ScheduleTimeline';
 import { Spinner, StatusPill, EmptyState, Modal } from '../../components/ui';
 import './wo.css';
 
@@ -44,17 +57,6 @@ function isEmptyWo(w: WorkOrder | null): boolean {
     !w.scheduled_at &&
     !w.discount_type
   );
-}
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
 }
 
 function toLocalInput(iso: string | null): string {
@@ -75,6 +77,9 @@ export function WorkOrderPage() {
   });
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.settings });
   const { data: templates } = useQuery({ queryKey: ['templates'], queryFn: api.templates });
+  const { user } = useAuth();
+  const canAssign = canAssignMaster(user?.role);
+  const { data: staff } = useQuery({ queryKey: ['users'], queryFn: api.users, enabled: canAssign });
 
   const onSaved = (next: WorkOrder) => {
     qc.setQueryData(['work-order', id], next);
@@ -358,13 +363,19 @@ export function WorkOrderPage() {
         {/* summary */}
         <aside className="wo-summary">
           <div className="panel summary-panel">
-            <div className="sum-line"><span className="label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><CalendarClock size={14} /> Запись</span></div>
-            <input
-              className="input"
-              type="datetime-local"
-              defaultValue={toLocalInput(wo.scheduled_at)}
+            <MasterControl
+              wo={wo}
+              staff={staff}
+              canAssign={canAssign}
               disabled={closed}
-              onChange={(e) => mUpdate.mutate({ scheduled_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
+              onChange={(v) => mUpdate.mutate({ assigned_master_id: v })}
+            />
+
+            <ScheduleSection
+              wo={wo}
+              settings={settings}
+              disabled={closed}
+              onChange={(body) => mUpdate.mutate(body)}
             />
 
             <div className="sum-div" />
@@ -483,6 +494,60 @@ function AddPartRow({ onAdd, busy }: { onAdd: (b: Record<string, unknown>) => vo
   );
 }
 
+/** Закреплённый мастер: селектор для админа/приёмщика, имя read-only для мастера. */
+function MasterControl({
+  wo,
+  staff,
+  canAssign,
+  disabled,
+  onChange,
+}: {
+  wo: WorkOrder;
+  staff: User[] | undefined;
+  canAssign: boolean;
+  disabled: boolean;
+  onChange: (masterId: string | null) => void;
+}) {
+  if (!canAssign) {
+    if (!wo.assigned_master) return null;
+    return (
+      <>
+        <div className="sum-line">
+          <span className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <UserCog size={14} /> Мастер
+          </span>
+          <span className="fw-500">{wo.assigned_master.name}</span>
+        </div>
+        <div className="sum-div" />
+      </>
+    );
+  }
+  const assignable = (staff ?? []).filter((u) => u.is_active);
+  return (
+    <>
+      <div className="sum-line">
+        <span className="muted" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <UserCog size={14} /> Мастер
+        </span>
+        <select
+          className="select btn-sm"
+          style={{ width: 'auto', maxWidth: 190, height: '1.875rem' }}
+          value={wo.assigned_master_id ?? ''}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.value || null)}
+          aria-label="Закреплённый мастер"
+        >
+          <option value="">— не назначен —</option>
+          {assignable.map((u) => (
+            <option key={u.id} value={u.id}>{u.name}</option>
+          ))}
+        </select>
+      </div>
+      <div className="sum-div" />
+    </>
+  );
+}
+
 function DiscountControl({ wo, disabled, onChange }: { wo: WorkOrder; disabled: boolean; onChange: (t: DiscountType | null, v: number | null) => void }) {
   const [type, setType] = useState<'' | DiscountType>(wo.discount_type ?? '');
   const [val, setVal] = useState(wo.discount_value != null ? String(wo.discount_value) : '');
@@ -526,5 +591,178 @@ function DiscountControl({ wo, disabled, onChange }: { wo: WorkOrder; disabled: 
         )}
       </div>
     </div>
+  );
+}
+
+/** «Запись» в сводке наряда: дата/время + длительность + визуальный выбор слота. */
+function ScheduleSection({
+  wo,
+  settings,
+  disabled,
+  onChange,
+}: {
+  wo: WorkOrder;
+  settings: AppSettings | undefined;
+  disabled: boolean;
+  onChange: (body: Partial<WorkOrder>) => void;
+}) {
+  const toast = useToast();
+  const [pickOpen, setPickOpen] = useState(false);
+  const [pickerDay, setPickerDay] = useState<Date>(() =>
+    wo.scheduled_at ? new Date(wo.scheduled_at) : new Date(),
+  );
+
+  const defaultDur = settings?.default_appointment_min ?? 60;
+  const cfg: TimelineCfg = {
+    startHour: settings?.working_hours_start ?? 8,
+    endHour: settings?.working_hours_end ?? 20,
+    slotMin: settings?.slot_minutes ?? 30,
+    pxPerMin: 1,
+  };
+
+  const dayStr = format(pickerDay, 'yyyy-MM-dd');
+  const { data: dayBookings } = useQuery({
+    queryKey: ['calendar', dayStr, dayStr],
+    queryFn: () => api.calendar(dayStr, dayStr),
+    enabled: pickOpen,
+  });
+
+  const busyEvents: TimelineEvent[] = useMemo(
+    () =>
+      (dayBookings ?? [])
+        .filter((w) => w.scheduled_at && w.id !== wo.id)
+        .map((w) => ({
+          id: w.id,
+          start: new Date(w.scheduled_at as string),
+          durationMin: w.scheduled_duration_min ?? defaultDur,
+          status: w.status,
+          title: w.title?.trim() || `${w.vehicle?.model || 'MINI'} ${w.vehicle?.plate || ''}`.trim(),
+          subtitle: w.vehicle?.client?.full_name ?? '',
+        })),
+    [dayBookings, wo.id, defaultDur],
+  );
+
+  const dur = wo.scheduled_duration_min ?? defaultDur;
+  const laborMinutes = Math.round(
+    (wo.labor_lines ?? []).reduce((a, l) => a + (l.hours ?? 0), 0) * 60,
+  );
+
+  const selection: TimelineEvent | null =
+    wo.scheduled_at && isSameDay(new Date(wo.scheduled_at), pickerDay)
+      ? {
+          id: SELECTION_ID,
+          start: new Date(wo.scheduled_at),
+          durationMin: dur,
+          kind: 'selection',
+          title: 'Эта запись',
+        }
+      : null;
+
+  const warn = (proposed: TimelineEvent) => {
+    if (hasConflict(proposed, busyEvents)) toast('Пересечение с другой записью', 'info');
+  };
+
+  const setStart = (iso: string | null) => {
+    if (iso) warn({ id: wo.id, start: new Date(iso), durationMin: dur });
+    onChange({ scheduled_at: iso });
+  };
+  const setDuration = (mins: number) => {
+    if (wo.scheduled_at) warn({ id: wo.id, start: new Date(wo.scheduled_at), durationMin: mins });
+    onChange({ scheduled_duration_min: mins });
+  };
+  const onSelectSlot = (iso: string, d: number) => {
+    warn({ id: wo.id, start: new Date(iso), durationMin: d });
+    onChange({ scheduled_at: iso, scheduled_duration_min: d });
+  };
+
+  return (
+    <>
+      <div className="sum-line">
+        <span className="label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <CalendarClock size={14} /> Запись
+        </span>
+      </div>
+      <div className="col gap-2">
+        <input
+          className="input"
+          type="datetime-local"
+          key={`dt-${wo.scheduled_at ?? 'none'}`}
+          defaultValue={toLocalInput(wo.scheduled_at)}
+          disabled={disabled}
+          onChange={(e) =>
+            setStart(e.target.value ? new Date(e.target.value).toISOString() : null)
+          }
+        />
+        <div className="row gap-2" style={{ alignItems: 'flex-end' }}>
+          <div className="field grow">
+            <label className="label">Длительность, мин</label>
+            <input
+              className="input tnum"
+              key={`dur-${wo.scheduled_duration_min ?? 'd'}`}
+              defaultValue={wo.scheduled_duration_min ?? ''}
+              placeholder={String(defaultDur)}
+              inputMode="numeric"
+              disabled={disabled || !wo.scheduled_at}
+              onBlur={(e) => {
+                const v = e.target.value.replace(/\D/g, '');
+                const n = v ? Number(v) : defaultDur;
+                if (n !== (wo.scheduled_duration_min ?? null)) setDuration(n);
+              }}
+              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+            />
+          </div>
+          <button
+            type="button"
+            className="btn btn-default btn-sm"
+            disabled={disabled}
+            onClick={() => {
+              setPickerDay(wo.scheduled_at ? new Date(wo.scheduled_at) : new Date());
+              setPickOpen(true);
+            }}
+          >
+            <CalendarSearch size={15} /> Слот
+          </button>
+        </div>
+        {!disabled && wo.scheduled_at && laborMinutes > 0 && laborMinutes !== wo.scheduled_duration_min && (
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            style={{ alignSelf: 'flex-start' }}
+            onClick={() => setDuration(laborMinutes)}
+          >
+            <Clock size={14} /> Подогнать под часы работ ({laborMinutes} мин)
+          </button>
+        )}
+      </div>
+
+      <Modal
+        open={pickOpen}
+        onClose={() => setPickOpen(false)}
+        title="Выбор слота"
+        width={520}
+        footer={<button className="btn btn-primary" onClick={() => setPickOpen(false)}>Готово</button>}
+      >
+        <div className="row gap-2" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <span className="fw-500" style={{ textTransform: 'capitalize' }}>
+            {format(pickerDay, 'EEEE, d MMMM', { locale: ru })}
+          </span>
+          <div className="row gap-1">
+            <button className="btn btn-default btn-icon btn-sm" onClick={() => setPickerDay((d) => addDays(d, -1))} aria-label="Назад"><ChevronLeft size={15} /></button>
+            <button className="btn btn-default btn-sm" onClick={() => setPickerDay(new Date())}>Сегодня</button>
+            <button className="btn btn-default btn-icon btn-sm" onClick={() => setPickerDay((d) => addDays(d, 1))} aria-label="Вперёд"><ChevronRight size={15} /></button>
+          </div>
+        </div>
+        <ScheduleTimeline
+          days={[pickerDay]}
+          events={busyEvents}
+          cfg={cfg}
+          selectable
+          selection={selection}
+          defaultDurationMin={defaultDur}
+          showHeaders={false}
+          onSelect={onSelectSlot}
+        />
+      </Modal>
+    </>
   );
 }

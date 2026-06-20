@@ -1,11 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, User, Car, Wrench, Search } from 'lucide-react';
+import { addDays, format, isSameDay } from 'date-fns';
+import { ru } from 'date-fns/locale';
+import { Check, User, Car, Wrench, Search, ChevronLeft, ChevronRight, CalendarX } from 'lucide-react';
 import { api } from '../lib/api';
 import { useToast } from '../lib/toast';
 import { phone as fmtPhone } from '../lib/format';
 import type { Vehicle } from '../lib/types';
+import type { TimelineCfg, TimelineEvent } from '../lib/schedule';
+import { ScheduleTimeline, SELECTION_ID } from './ScheduleTimeline';
 import { Modal, Spinner } from './ui';
 
 type Picked = { id: string; full_name: string; phone: string };
@@ -44,6 +48,7 @@ export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => v
   const [title, setTitle] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
   const [duration, setDuration] = useState('');
+  const [pickerDay, setPickerDay] = useState<Date>(new Date());
 
   useEffect(() => {
     if (open) {
@@ -63,6 +68,7 @@ export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => v
       setTitle('');
       setScheduledAt('');
       setDuration('');
+      setPickerDay(new Date());
     }
   }, [open]);
 
@@ -78,6 +84,54 @@ export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => v
     queryFn: () => api.clientVehicles(picked!.id),
     enabled: open && step >= 2 && clientMode === 'existing' && !!picked?.id,
   });
+
+  // step 3 — slot picker over the chosen day's existing bookings
+  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.settings });
+  const dayStr = format(pickerDay, 'yyyy-MM-dd');
+  const { data: dayBookings } = useQuery({
+    queryKey: ['calendar', dayStr, dayStr],
+    queryFn: () => api.calendar(dayStr, dayStr),
+    enabled: open && step === 3,
+  });
+
+  const defaultDur = settings?.default_appointment_min ?? 60;
+  const cfg: TimelineCfg = {
+    startHour: settings?.working_hours_start ?? 8,
+    endHour: settings?.working_hours_end ?? 20,
+    slotMin: settings?.slot_minutes ?? 30,
+    pxPerMin: 1,
+  };
+
+  const busyEvents: TimelineEvent[] = useMemo(
+    () =>
+      (dayBookings ?? [])
+        .filter((w) => w.scheduled_at)
+        .map((w) => ({
+          id: w.id,
+          start: new Date(w.scheduled_at as string),
+          durationMin: w.scheduled_duration_min ?? defaultDur,
+          status: w.status,
+          title: w.title?.trim() || `${w.vehicle?.model || 'MINI'} ${w.vehicle?.plate || ''}`.trim(),
+          subtitle: w.vehicle?.client?.full_name ?? '',
+        })),
+    [dayBookings, defaultDur],
+  );
+
+  const selection: TimelineEvent | null =
+    scheduledAt && isSameDay(new Date(scheduledAt), pickerDay)
+      ? {
+          id: SELECTION_ID,
+          start: new Date(scheduledAt),
+          durationMin: Number(duration) || defaultDur,
+          kind: 'selection',
+          title: 'Новая запись',
+        }
+      : null;
+
+  const onSelectSlot = (iso: string, dur: number) => {
+    setScheduledAt(iso);
+    setDuration(String(dur));
+  };
 
   const step1Valid =
     clientMode === 'existing'
@@ -144,7 +198,7 @@ export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => v
       open={open}
       onClose={onClose}
       title="Новый приём"
-      width={560}
+      width={step === 3 ? 660 : 560}
       footer={
         <>
           {step > 1 && (
@@ -299,14 +353,57 @@ export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => v
             <label className="label">Что делаем (необязательно)</label>
             <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ТО, диагностика подвески…" autoFocus />
           </div>
-          <div className="grid-2">
-            <div className="field">
-              <label className="label">Дата и время</label>
-              <input className="input" type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+
+          <div className="field">
+            <div className="row gap-2" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+              <label className="label" style={{ margin: 0 }}>Запись на время — выберите свободный слот</label>
+              <div className="row gap-1">
+                <button type="button" className="btn btn-default btn-icon btn-sm" onClick={() => setPickerDay((d) => addDays(d, -1))} aria-label="Предыдущий день"><ChevronLeft size={15} /></button>
+                <button type="button" className="btn btn-default btn-sm" onClick={() => setPickerDay(new Date())}>Сегодня</button>
+                <button type="button" className="btn btn-default btn-icon btn-sm" onClick={() => setPickerDay((d) => addDays(d, 1))} aria-label="Следующий день"><ChevronRight size={15} /></button>
+              </div>
             </div>
-            <div className="field">
-              <label className="label">Длительность, мин</label>
-              <input className="input tnum" value={duration} onChange={(e) => setDuration(e.target.value.replace(/\D/g, ''))} placeholder="60" inputMode="numeric" />
+            <div className="cal-rangebar" style={{ margin: '6px 0' }}>{format(pickerDay, 'EEEE, d MMMM', { locale: ru })}</div>
+            <ScheduleTimeline
+              days={[pickerDay]}
+              events={busyEvents}
+              cfg={cfg}
+              selectable
+              selection={selection}
+              defaultDurationMin={defaultDur}
+              showHeaders={false}
+              onSelect={onSelectSlot}
+            />
+          </div>
+
+          <div className="row gap-2 wrap" style={{ alignItems: 'flex-end', justifyContent: 'space-between' }}>
+            <div className="text-sm">
+              {scheduledAt ? (
+                <span>
+                  Запись: <span className="mono fw-500">{format(new Date(scheduledAt), 'd MMM, HH:mm', { locale: ru })}</span>
+                  {' · '}{Number(duration) || defaultDur} мин
+                </span>
+              ) : (
+                <span className="muted">Слот не выбран — наряд создастся без записи</span>
+              )}
+            </div>
+            <div className="row gap-2" style={{ alignItems: 'flex-end' }}>
+              <div className="field" style={{ width: 110 }}>
+                <label className="label">Длит., мин</label>
+                <input
+                  className="input tnum"
+                  value={duration}
+                  onChange={(e) => setDuration(e.target.value.replace(/\D/g, ''))}
+                  placeholder={String(defaultDur)}
+                  inputMode="numeric"
+                  disabled={!scheduledAt}
+                />
+              </div>
+              {scheduledAt && (
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setScheduledAt(''); setDuration(''); }}>
+                  <CalendarX size={15} /> Без записи
+                </button>
+              )}
             </div>
           </div>
           <p className="text-xs muted">Строки работ и запчасти добавите в смете после создания наряда.</p>

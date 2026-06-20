@@ -10,12 +10,14 @@ import { PricingService } from './pricing.service';
 import { WorkOrderPdfService } from './pdf/work-order-pdf.service';
 import { SettingsModule } from '../settings/settings.module';
 import { TaskTemplatesModule } from '../task-templates/task-templates.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([WorkOrder, LaborLine, PartLine, Vehicle]),
     SettingsModule,
     TaskTemplatesModule,
+    UsersModule,
   ],
   providers: [WorkOrdersService, PricingService, WorkOrderPdfService],
   controllers: [WorkOrdersController],

@@ -1,0 +1,36 @@
+/* Reuses .clients-controls / .clients-search / .clients-select / .list / .list-row
+   (loaded globally via clients.css). Only archive-specific layout lives here. */
+
+.archive-row {
+  grid-template-columns: 64px minmax(0, 1fr) 120px 120px 40px 24px;
+}
+.list-row.archive-row {
+  cursor: pointer;
+}
+.archive-num {
+  font-size: var(--text-xs);
+}
+.archive-sub {
+  margin-top: 2px;
+}
+.archive-total {
+  text-align: right;
+}
+
+.archive-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+}
+
+@media (max-width: 720px) {
+  .archive-row {
+    grid-template-columns: 52px minmax(0, 1fr) 110px 36px 20px;
+  }
+  .col-closed,
+  .list-head .col-closed {
+    display: none;
+  }
+}
