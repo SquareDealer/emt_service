@@ -6,11 +6,11 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // Dev convenience: same-origin API calls via /api -> NestJS backend.
+      // Dev mirrors prod: the SPA calls /api/* and the backend serves under the
+      // /api global prefix, so forward the path as-is (no rewrite).
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/api/, ''),
       },
     },
   },

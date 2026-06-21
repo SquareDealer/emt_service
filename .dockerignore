@@ -1,0 +1,14 @@
+# Backend build context (repo root). Keep it small; client builds separately.
+node_modules
+dist
+coverage
+client
+.git
+.github
+.env
+.env.*
+*.pdf
+*.log
+backups
+.claude
+.agents

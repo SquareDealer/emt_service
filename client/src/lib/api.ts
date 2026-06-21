@@ -14,7 +14,10 @@ import type {
   WorkOrderStatus,
 } from './types';
 
-const BASE = import.meta.env.VITE_API_URL || '';
+// API lives under /api (same-origin behind the reverse proxy in prod; the Vite
+// dev proxy forwards /api → backend). Override with VITE_API_URL only to point at
+// an absolute backend (e.g. a separate API domain).
+const BASE = import.meta.env.VITE_API_URL || '/api';
 const TOKEN_KEY = 'crm-token';
 
 export function getToken() {

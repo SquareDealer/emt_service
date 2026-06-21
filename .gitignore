@@ -2,9 +2,13 @@ node_modules
 dist
 coverage
 .env
+/.env.production
 *.log
 client/node_modules
 client/dist
+
+# prod DB dumps
+/backups/
 
 # local tooling / vendored skills (not app code)
 .agents/

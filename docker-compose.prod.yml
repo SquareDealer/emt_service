@@ -1,0 +1,56 @@
+# Production stack — one VPS, single domain.
+# Run: docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+services:
+  db:
+    image: postgres:16
+    container_name: tatarin_pg_prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: crm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.production}
+      POSTGRES_DB: tatarin_crm
+    volumes:
+      - tatarin_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm -d tatarin_crm"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env.production
+    # DATABASE_URL and CORS_ORIGIN are composed here so the password/domain have a
+    # single source of truth (POSTGRES_PASSWORD / DOMAIN in .env.production).
+    environment:
+      DATABASE_URL: postgres://crm:${POSTGRES_PASSWORD}@db:5432/tatarin_crm
+      CORS_ORIGIN: https://${DOMAIN}
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "3000"
+
+  web:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env.production}
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  tatarin_pgdata:
+  caddy_data:
+  caddy_config:
