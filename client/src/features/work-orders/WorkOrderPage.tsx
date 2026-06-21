@@ -90,8 +90,21 @@ export function WorkOrderPage() {
 
   const mUpdate = useMutation({
     mutationFn: (body: Partial<WorkOrder>) => api.updateWorkOrder(id, body),
+    // Optimistic: the edit shows in the UI the instant it's made (e.g. the «Запись»
+    // time updates the moment you pick it) — no waiting for the round-trip, no
+    // dependency on the «Сохранить» button. onSuccess swaps in the server truth;
+    // onError rolls back.
+    onMutate: async (body: Partial<WorkOrder>) => {
+      await qc.cancelQueries({ queryKey: ['work-order', id] });
+      const prev = qc.getQueryData<WorkOrder>(['work-order', id]);
+      if (prev) qc.setQueryData<WorkOrder>(['work-order', id], { ...prev, ...body });
+      return { prev };
+    },
     onSuccess: onSaved,
-    onError: (e) => toast((e as Error).message, 'error'),
+    onError: (e, _body, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['work-order', id], ctx.prev);
+      toast((e as Error).message, 'error');
+    },
   });
   const mStatus = useMutation({
     mutationFn: (s: WorkOrderStatus) => api.setStatus(id, s),
@@ -733,6 +746,7 @@ function ScheduleSection({
   const setStart = (iso: string | null) => {
     if (iso) warn({ id: wo.id, start: new Date(iso), durationMin: dur });
     onChange({ scheduled_at: iso });
+    toast(iso ? 'Время записи изменено' : 'Запись снята', 'success');
   };
   const setDuration = (mins: number) => {
     if (wo.scheduled_at) warn({ id: wo.id, start: new Date(wo.scheduled_at), durationMin: mins });
@@ -754,19 +768,16 @@ function ScheduleSection({
         <input
           className="input"
           type="datetime-local"
-          key={`dt-${wo.scheduled_at ?? 'none'}`}
-          defaultValue={toLocalInput(wo.scheduled_at)}
+          // Controlled (value, not defaultValue + key): commits on pick via the
+          // optimistic mUpdate, so the time changes the instant you choose it.
+          // No `key` → no remount mid-edit; the optimistic cache write re-renders
+          // the value smoothly. Slot picker / «Подогнать» flow in the same way.
+          value={toLocalInput(wo.scheduled_at)}
           disabled={disabled}
-          // Commit on blur, not onChange: the input is uncontrolled and its `key`
-          // is derived from wo.scheduled_at, so an onChange-driven save remounts the
-          // field mid-edit (key flips) and the in-progress edit snaps back. Blur
-          // commits once — mirrors the «Длительность» field below.
-          onBlur={(e) => {
+          onChange={(e) => {
             const v = e.target.value;
-            if (v === toLocalInput(wo.scheduled_at)) return;
             setStart(v ? new Date(v).toISOString() : null);
           }}
-          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
         />
         <div className="row gap-2" style={{ alignItems: 'flex-end' }}>
           <div className="field grow">
