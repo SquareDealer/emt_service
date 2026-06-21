@@ -79,6 +79,13 @@ export function CalendarPage() {
       );
       return { prev };
     },
+    onSuccess: (_data, { body }) => {
+      if (body.scheduled_at) {
+        toast(`Время записи изменено · ${format(new Date(body.scheduled_at), 'HH:mm')}`, 'success');
+      } else if (body.scheduled_duration_min != null) {
+        toast(`Длительность изменена · ${body.scheduled_duration_min} мин`, 'success');
+      }
+    },
     onError: (_e, _v, ctx) => {
       if (ctx?.prev) qc.setQueryData(calKey, ctx.prev);
       toast('Не удалось сохранить запись', 'error');
@@ -87,6 +94,7 @@ export function CalendarPage() {
       qc.invalidateQueries({ queryKey: ['calendar'] });
       qc.invalidateQueries({ queryKey: ['board'] });
       qc.invalidateQueries({ queryKey: ['work-orders'] });
+      qc.invalidateQueries({ queryKey: ['work-order'] }); // detail page, if open
     },
   });
 

@@ -74,6 +74,10 @@ export function WorkOrderPage() {
   const { data: wo, isLoading } = useQuery({
     queryKey: ['work-order', id],
     queryFn: () => api.workOrder(id),
+    // Always pull fresh on open: the global staleTime (10s) + edits made from other
+    // surfaces (calendar/board drag) would otherwise show a stale time/date here
+    // until a full page reload. 'always' refetches on every mount.
+    refetchOnMount: 'always',
   });
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.settings });
   const { data: templates } = useQuery({ queryKey: ['templates'], queryFn: api.templates });
@@ -90,8 +94,24 @@ export function WorkOrderPage() {
 
   const mUpdate = useMutation({
     mutationFn: (body: Partial<WorkOrder>) => api.updateWorkOrder(id, body),
+    // Optimistic: the edit shows in the UI the instant it's made (e.g. the «Запись»
+    // time updates the moment you pick it) — no waiting for the round-trip, no
+    // dependency on the «Сохранить» button. onSuccess swaps in the server truth;
+    // onError rolls back.
+    onMutate: async (body: Partial<WorkOrder>) => {
+      // Write the cache synchronously (before any await) so the controlled inputs
+      // re-render to the new value in the same commit — no flicker/revert. Then
+      // cancel any in-flight refetch so it can't clobber the optimistic value.
+      const prev = qc.getQueryData<WorkOrder>(['work-order', id]);
+      if (prev) qc.setQueryData<WorkOrder>(['work-order', id], { ...prev, ...body });
+      await qc.cancelQueries({ queryKey: ['work-order', id] });
+      return { prev };
+    },
     onSuccess: onSaved,
-    onError: (e) => toast((e as Error).message, 'error'),
+    onError: (e, _body, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['work-order', id], ctx.prev);
+      toast((e as Error).message, 'error');
+    },
   });
   const mStatus = useMutation({
     mutationFn: (s: WorkOrderStatus) => api.setStatus(id, s),
@@ -733,6 +753,7 @@ function ScheduleSection({
   const setStart = (iso: string | null) => {
     if (iso) warn({ id: wo.id, start: new Date(iso), durationMin: dur });
     onChange({ scheduled_at: iso });
+    toast(iso ? 'Время записи изменено' : 'Запись снята', 'success');
   };
   const setDuration = (mins: number) => {
     if (wo.scheduled_at) warn({ id: wo.id, start: new Date(wo.scheduled_at), durationMin: mins });
@@ -754,12 +775,16 @@ function ScheduleSection({
         <input
           className="input"
           type="datetime-local"
-          key={`dt-${wo.scheduled_at ?? 'none'}`}
-          defaultValue={toLocalInput(wo.scheduled_at)}
+          // Controlled (value, not defaultValue + key): commits on pick via the
+          // optimistic mUpdate, so the time changes the instant you choose it.
+          // No `key` → no remount mid-edit; the optimistic cache write re-renders
+          // the value smoothly. Slot picker / «Подогнать» flow in the same way.
+          value={toLocalInput(wo.scheduled_at)}
           disabled={disabled}
-          onChange={(e) =>
-            setStart(e.target.value ? new Date(e.target.value).toISOString() : null)
-          }
+          onChange={(e) => {
+            const v = e.target.value;
+            setStart(v ? new Date(v).toISOString() : null);
+          }}
         />
         <div className="row gap-2" style={{ alignItems: 'flex-end' }}>
           <div className="field grow">
