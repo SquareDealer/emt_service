@@ -4,6 +4,9 @@
   "description": "CRM для СТО (MINI Cooper) — MVP backend",
   "license": "UNLICENSED",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "nest build",
     "start": "nest start",

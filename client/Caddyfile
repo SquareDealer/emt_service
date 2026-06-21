@@ -1,0 +1,18 @@
+# Edge: serves the SPA and reverse-proxies the API. DOMAIN drives auto-HTTPS:
+#   - DOMAIN=crm.example.com  → automatic Let's Encrypt certificate
+#   - DOMAIN=:80              → plain HTTP (local smoke test)
+{$DOMAIN} {
+	encode gzip
+
+	# API → backend (NestJS serves under the /api global prefix).
+	handle /api/* {
+		reverse_proxy api:3000
+	}
+
+	# SPA: static files + history fallback for BrowserRouter deep links.
+	handle {
+		root * /srv/www
+		try_files {path} /index.html
+		file_server
+	}
+}
