@@ -94,6 +94,7 @@ export function CalendarPage() {
       qc.invalidateQueries({ queryKey: ['calendar'] });
       qc.invalidateQueries({ queryKey: ['board'] });
       qc.invalidateQueries({ queryKey: ['work-orders'] });
+      qc.invalidateQueries({ queryKey: ['work-order'] }); // detail page, if open
     },
   });
 

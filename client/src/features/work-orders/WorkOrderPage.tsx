@@ -74,6 +74,10 @@ export function WorkOrderPage() {
   const { data: wo, isLoading } = useQuery({
     queryKey: ['work-order', id],
     queryFn: () => api.workOrder(id),
+    // Always pull fresh on open: the global staleTime (10s) + edits made from other
+    // surfaces (calendar/board drag) would otherwise show a stale time/date here
+    // until a full page reload. 'always' refetches on every mount.
+    refetchOnMount: 'always',
   });
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.settings });
   const { data: templates } = useQuery({ queryKey: ['templates'], queryFn: api.templates });
@@ -95,9 +99,12 @@ export function WorkOrderPage() {
     // dependency on the «Сохранить» button. onSuccess swaps in the server truth;
     // onError rolls back.
     onMutate: async (body: Partial<WorkOrder>) => {
-      await qc.cancelQueries({ queryKey: ['work-order', id] });
+      // Write the cache synchronously (before any await) so the controlled inputs
+      // re-render to the new value in the same commit — no flicker/revert. Then
+      // cancel any in-flight refetch so it can't clobber the optimistic value.
       const prev = qc.getQueryData<WorkOrder>(['work-order', id]);
       if (prev) qc.setQueryData<WorkOrder>(['work-order', id], { ...prev, ...body });
+      await qc.cancelQueries({ queryKey: ['work-order', id] });
       return { prev };
     },
     onSuccess: onSaved,

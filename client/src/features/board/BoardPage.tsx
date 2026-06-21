@@ -46,6 +46,7 @@ export function BoardPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['board'] });
       qc.invalidateQueries({ queryKey: ['work-orders'] });
+      qc.invalidateQueries({ queryKey: ['work-order'] }); // detail page, if open
     },
     onError: (e) => {
       toast((e as Error).message, 'error');
