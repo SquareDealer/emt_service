@@ -757,9 +757,16 @@ function ScheduleSection({
           key={`dt-${wo.scheduled_at ?? 'none'}`}
           defaultValue={toLocalInput(wo.scheduled_at)}
           disabled={disabled}
-          onChange={(e) =>
-            setStart(e.target.value ? new Date(e.target.value).toISOString() : null)
-          }
+          // Commit on blur, not onChange: the input is uncontrolled and its `key`
+          // is derived from wo.scheduled_at, so an onChange-driven save remounts the
+          // field mid-edit (key flips) and the in-progress edit snaps back. Blur
+          // commits once — mirrors the «Длительность» field below.
+          onBlur={(e) => {
+            const v = e.target.value;
+            if (v === toLocalInput(wo.scheduled_at)) return;
+            setStart(v ? new Date(v).toISOString() : null);
+          }}
+          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
         />
         <div className="row gap-2" style={{ alignItems: 'flex-end' }}>
           <div className="field grow">
