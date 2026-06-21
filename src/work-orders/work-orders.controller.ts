@@ -10,11 +10,13 @@ import {
   Query,
   StreamableFile,
 } from '@nestjs/common';
-import { WorkOrdersService } from './work-orders.service';
+import { ArchiveSort, WorkOrdersService } from './work-orders.service';
+import { CurrentUser, CurrentUserData } from '../auth/current-user.decorator';
 import {
   CreateLaborLineDto,
   CreatePartLineDto,
   CreateWorkOrderDto,
+  SetPaidDto,
   UpdateStatusDto,
   UpdateWorkOrderDto,
 } from './dto/work-order.dto';
@@ -24,91 +26,154 @@ export class WorkOrdersController {
   constructor(private readonly workOrders: WorkOrdersService) {}
 
   @Get()
-  findAll() {
-    return this.workOrders.findAll();
+  findAll(@CurrentUser() user: CurrentUserData) {
+    return this.workOrders.findAll(user);
   }
 
   // literal routes must precede ':id' so they aren't parsed as a UUID
   @Get('board')
-  board() {
-    return this.workOrders.board();
+  board(@CurrentUser() user: CurrentUserData) {
+    return this.workOrders.board(user);
   }
 
   @Get('calendar')
-  calendar(@Query('from') from?: string, @Query('to') to?: string) {
-    return this.workOrders.calendar(from, to);
+  calendar(
+    @CurrentUser() user: CurrentUserData,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.workOrders.calendar(from, to, user);
+  }
+
+  @Get('archive')
+  archive(
+    @CurrentUser() user: CurrentUserData,
+    @Query('q') q?: string,
+    @Query('sort') sort?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.workOrders.archive(
+      {
+        q,
+        sort: sort as ArchiveSort,
+        page: page ? Number(page) : undefined,
+        pageSize: pageSize ? Number(pageSize) : undefined,
+      },
+      user,
+    );
   }
 
   @Post()
-  create(@Body() dto: CreateWorkOrderDto) {
-    return this.workOrders.create(dto);
+  create(@Body() dto: CreateWorkOrderDto, @CurrentUser() user: CurrentUserData) {
+    return this.workOrders.create(dto, user);
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.workOrders.findOne(id);
+  findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.workOrders.findOne(id, user);
   }
 
   @Patch(':id')
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateWorkOrderDto) {
-    return this.workOrders.update(id, dto);
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateWorkOrderDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.workOrders.update(id, dto, user);
   }
 
   @Patch(':id/status')
   updateStatus(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateStatusDto,
+    @CurrentUser() user: CurrentUserData,
   ) {
-    return this.workOrders.updateStatus(id, dto.status);
+    return this.workOrders.updateStatus(id, dto.status, user);
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseUUIDPipe) id: string) {
-    return this.workOrders.remove(id);
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.workOrders.remove(id, user);
   }
 
   @Post(':id/labor')
   addLabor(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CreateLaborLineDto,
+    @CurrentUser() user: CurrentUserData,
   ) {
-    return this.workOrders.addLaborLine(id, dto);
+    return this.workOrders.addLaborLine(id, dto, user);
   }
 
   @Delete(':id/labor/:lineId')
   removeLabor(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('lineId', ParseUUIDPipe) lineId: string,
+    @CurrentUser() user: CurrentUserData,
   ) {
-    return this.workOrders.removeLaborLine(id, lineId);
+    return this.workOrders.removeLaborLine(id, lineId, user);
   }
 
   @Post(':id/parts')
   addPart(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CreatePartLineDto,
+    @CurrentUser() user: CurrentUserData,
   ) {
-    return this.workOrders.addPartLine(id, dto);
+    return this.workOrders.addPartLine(id, dto, user);
   }
 
   @Delete(':id/parts/:lineId')
   removePart(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('lineId', ParseUUIDPipe) lineId: string,
+    @CurrentUser() user: CurrentUserData,
   ) {
-    return this.workOrders.removePartLine(id, lineId);
+    return this.workOrders.removePartLine(id, lineId, user);
   }
 
   @Post(':id/close')
-  close(@Param('id', ParseUUIDPipe) id: string) {
-    return this.workOrders.close(id);
+  close(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.workOrders.close(id, user);
+  }
+
+  @Patch(':id/paid')
+  setPaid(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetPaidDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.workOrders.setPaid(id, dto.paid_amount, user);
   }
 
   @Get(':id/pdf')
   async pdf(
     @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: CurrentUserData,
   ): Promise<StreamableFile> {
-    const { buffer, filename } = await this.workOrders.renderPdf(id);
+    const { buffer, filename } = await this.workOrders.renderPdf(id, user);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${filename}"`,
+    });
+  }
+
+  @Get(':id/order-pdf')
+  async orderPdf(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: CurrentUserData,
+  ): Promise<StreamableFile> {
+    const { buffer, filename } = await this.workOrders.renderOrderPdf(id, user);
     return new StreamableFile(buffer, {
       type: 'application/pdf',
       disposition: `attachment; filename="${filename}"`,

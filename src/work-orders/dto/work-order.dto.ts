@@ -89,6 +89,12 @@ export class UpdateStatusDto {
   status: WorkOrderStatus;
 }
 
+export class SetPaidDto {
+  @IsNumber()
+  @Min(0)
+  paid_amount: number;
+}
+
 export class CreateLaborLineDto {
   @IsOptional()
   @IsUUID()

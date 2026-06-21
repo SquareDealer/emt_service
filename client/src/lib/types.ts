@@ -9,6 +9,16 @@ export type WorkOrderStatus =
 
 export type DiscountType = 'percent' | 'fixed';
 
+export type UserRole = 'owner' | 'master_receptionist' | 'master';
+
+export interface User {
+  id: string;
+  name: string;
+  login: string;
+  role: UserRole;
+  is_active: boolean;
+}
+
 export interface Client {
   id: string;
   full_name: string;
@@ -66,12 +76,24 @@ export interface WorkOrder {
   discount_value: number | null;
   total_cached: number;
   total_frozen: number | null;
+  paid_amount: number;
   closed_at: string | null;
   doc_number: number | null;
+  order_doc_number: number | null;
   created_at: string;
   vehicle?: Vehicle & { client?: Client };
   labor_lines?: LaborLine[];
   part_lines?: PartLine[];
+  assigned_master?: { id: string; name: string } | null;
+}
+
+export type ArchiveSort = 'closed_desc' | 'closed_asc' | 'total_desc' | 'total_asc';
+
+export interface Paginated<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface AppSettings {
@@ -81,6 +103,10 @@ export interface AppSettings {
   company_address: string;
   company_phone: string;
   vat_rate: number;
+  working_hours_start: number;
+  working_hours_end: number;
+  slot_minutes: number;
+  default_appointment_min: number;
 }
 
 export interface TaskTemplate {
@@ -114,8 +140,14 @@ export interface AuthUser {
   id: string;
   name: string;
   login: string;
-  role: string;
+  role: UserRole;
 }
+
+export const ROLE_LABEL: Record<UserRole, string> = {
+  owner: 'Владелец',
+  master_receptionist: 'Мастер-приёмщик',
+  master: 'Мастер',
+};
 
 export const STATUS_ORDER: WorkOrderStatus[] = [
   'scheduled',

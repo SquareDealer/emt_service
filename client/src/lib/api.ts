@@ -1,10 +1,14 @@
 import type {
   AppSettings,
+  ArchiveSort,
   AuthUser,
   Client,
   ImportReport,
+  Paginated,
   SearchHit,
   TaskTemplate,
+  User,
+  UserRole,
   Vehicle,
   WorkOrder,
   WorkOrderStatus,
@@ -99,6 +103,17 @@ export const api = {
     }),
   me: () => request<AuthUser>('/auth/me'),
 
+  // users (staff)
+  users: () => request<User[]>('/users'),
+  createUser: (body: { name: string; login: string; password: string; role: UserRole }) =>
+    request<User>('/users', { body }),
+  updateUser: (
+    id: string,
+    body: Partial<{ name: string; role: UserRole; password: string; is_active: boolean }>,
+  ) => request<User>(`/users/${id}`, { method: 'PATCH', body }),
+  deleteUser: (id: string) =>
+    request<{ id: string }>(`/users/${id}`, { method: 'DELETE' }),
+
   // clients
   clients: () => request<Client[]>('/clients'),
   client: (id: string) => request<Client>(`/clients/${id}`),
@@ -123,6 +138,14 @@ export const api = {
   board: () => request<Record<WorkOrderStatus, WorkOrder[]>>('/work-orders/board'),
   calendar: (from: string, to: string) =>
     request<WorkOrder[]>(`/work-orders/calendar?from=${from}&to=${to}`),
+  archive: (p: { q?: string; sort?: ArchiveSort; page?: number; pageSize?: number }) => {
+    const qs = new URLSearchParams();
+    if (p.q) qs.set('q', p.q);
+    if (p.sort) qs.set('sort', p.sort);
+    if (p.page) qs.set('page', String(p.page));
+    if (p.pageSize) qs.set('pageSize', String(p.pageSize));
+    return request<Paginated<WorkOrder>>(`/work-orders/archive?${qs}`);
+  },
   workOrder: (id: string) => request<WorkOrder>(`/work-orders/${id}`),
   createWorkOrder: (body: Partial<WorkOrder>) =>
     request<WorkOrder>('/work-orders', { body }),
@@ -142,7 +165,10 @@ export const api = {
     request<WorkOrder>(`/work-orders/${id}/parts`, { body }),
   removePart: (id: string, lineId: string) =>
     request<WorkOrder>(`/work-orders/${id}/parts/${lineId}`, { method: 'DELETE' }),
+  setPaid: (id: string, paid_amount: number) =>
+    request<WorkOrder>(`/work-orders/${id}/paid`, { method: 'PATCH', body: { paid_amount } }),
   workOrderPdf: (id: string) => requestBlob(`/work-orders/${id}/pdf`),
+  workOrderOrderPdf: (id: string) => requestBlob(`/work-orders/${id}/order-pdf`),
 
   // templates & settings
   templates: () => request<TaskTemplate[]>('/task-templates'),

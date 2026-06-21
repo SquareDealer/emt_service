@@ -16,6 +16,9 @@ export class AuthService {
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
       throw new UnauthorizedException('Неверный логин или пароль');
     }
+    if (!user.is_active) {
+      throw new UnauthorizedException('Учётная запись деактивирована');
+    }
     return user;
   }
 
