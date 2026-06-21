@@ -104,6 +104,10 @@ export function Modal({
   width?: number;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // Only a backdrop click that BOTH started and ended on the dialog itself should
+  // close. Without this, selecting text inside and releasing the mouse over the
+  // backdrop fires a click whose target is the <dialog> → modal closed by accident.
+  const downOnBackdrop = useRef(false);
 
   useEffect(() => {
     const dlg = ref.current;
@@ -120,8 +124,11 @@ export function Modal({
         e.preventDefault();
         onClose();
       }}
+      onMouseDown={(e) => {
+        downOnBackdrop.current = e.target === ref.current;
+      }}
       onClick={(e) => {
-        if (e.target === ref.current) onClose();
+        if (e.target === ref.current && downOnBackdrop.current) onClose();
       }}
       style={width ? { maxWidth: `min(94vw, ${width}px)` } : undefined}
     >

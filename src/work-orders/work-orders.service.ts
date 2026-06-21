@@ -124,6 +124,11 @@ export class WorkOrdersService {
       scheduled_duration_min: dto.scheduled_duration_min ?? null,
       status: dto.status ?? 'scheduled',
       total_cached: 0,
+      // Both numeric columns carry a transformer, so TypeORM emits them in the
+      // INSERT even when unset — an unset paid_amount becomes NULL and trips the
+      // NOT NULL constraint (the DB DEFAULT 0 never applies). Set it explicitly,
+      // like total_cached above.
+      paid_amount: 0,
     });
     const saved = await this.repo.save(wo);
     return this.loadFull(saved.id);
