@@ -9,3 +9,7 @@ client/dist
 # local tooling / vendored skills (not app code)
 .agents/
 .claude/
+
+# generated / sample PDF artifacts + WSL zone metadata
+*.pdf
+*:Zone.Identifier

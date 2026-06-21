@@ -165,7 +165,10 @@ export const api = {
     request<WorkOrder>(`/work-orders/${id}/parts`, { body }),
   removePart: (id: string, lineId: string) =>
     request<WorkOrder>(`/work-orders/${id}/parts/${lineId}`, { method: 'DELETE' }),
+  setPaid: (id: string, paid_amount: number) =>
+    request<WorkOrder>(`/work-orders/${id}/paid`, { method: 'PATCH', body: { paid_amount } }),
   workOrderPdf: (id: string) => requestBlob(`/work-orders/${id}/pdf`),
+  workOrderOrderPdf: (id: string) => requestBlob(`/work-orders/${id}/order-pdf`),
 
   // templates & settings
   templates: () => request<TaskTemplate[]>('/task-templates'),

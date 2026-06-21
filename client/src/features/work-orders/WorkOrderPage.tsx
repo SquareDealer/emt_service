@@ -111,6 +111,19 @@ export function WorkOrderPage() {
     },
     onError: (e) => toast((e as Error).message, 'error'),
   });
+  const mOrderPdf = useMutation({
+    mutationFn: () => api.workOrderOrderPdf(id),
+    onSuccess: (blob) => {
+      downloadBlob(blob, `zakaz-naryad-${wo?.order_doc_number ?? id.slice(0, 8)}.pdf`);
+      toast('Заказ-наряд сформирован', 'success');
+    },
+    onError: (e) => toast((e as Error).message, 'error'),
+  });
+  const mPaid = useMutation({
+    mutationFn: (amount: number) => api.setPaid(id, amount),
+    onSuccess: onSaved,
+    onError: (e) => toast((e as Error).message, 'error'),
+  });
   const mAddLabor = useMutation({
     mutationFn: (body: Record<string, unknown>) => api.addLabor(id, body),
     onSuccess: onSaved,
@@ -394,23 +407,30 @@ export function WorkOrderPage() {
               <span className="mono tnum">{money(total)}</span>
             </div>
 
-            {!closed ? (
-              <div className="col gap-2">
-                <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleSave}>
-                  <Save size={15} /> Сохранить
-                </button>
-                <button className="btn btn-default" style={{ width: '100%' }} onClick={() => mClose.mutate()} disabled={mClose.isPending}>
-                  {mClose.isPending ? <Spinner /> : <Lock size={15} />} Закрыть и зафиксировать
-                </button>
-              </div>
-            ) : (
-              <div className="col gap-2">
-                <div className="frozen-chip"><Check size={14} /> Зафиксировано {money(wo.total_frozen)}</div>
-                <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => mPdf.mutate()} disabled={mPdf.isPending}>
-                  {mPdf.isPending ? <Spinner /> : <FileDown size={15} />} Сгенерировать отчёт
-                </button>
-              </div>
-            )}
+            <PaidControl wo={wo} total={total} onChange={(v) => mPaid.mutate(v)} />
+
+            <div className="col gap-2">
+              {!closed ? (
+                <>
+                  <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleSave}>
+                    <Save size={15} /> Сохранить
+                  </button>
+                  <button className="btn btn-default" style={{ width: '100%' }} onClick={() => mClose.mutate()} disabled={mClose.isPending}>
+                    {mClose.isPending ? <Spinner /> : <Lock size={15} />} Закрыть и зафиксировать
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="frozen-chip"><Check size={14} /> Зафиксировано {money(wo.total_frozen)}</div>
+                  <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => mPdf.mutate()} disabled={mPdf.isPending}>
+                    {mPdf.isPending ? <Spinner /> : <FileDown size={15} />} Сгенерировать отчёт
+                  </button>
+                </>
+              )}
+              <button className="btn btn-default" style={{ width: '100%' }} onClick={() => mOrderPdf.mutate()} disabled={mOrderPdf.isPending}>
+                {mOrderPdf.isPending ? <Spinner /> : <FileDown size={15} />} Заказ-наряд (PDF)
+              </button>
+            </div>
           </div>
         </aside>
       </div>
@@ -472,18 +492,27 @@ function AddLaborRow({ defaultRate, onAdd, busy }: { defaultRate: number; onAdd:
 
 function AddPartRow({ onAdd, busy }: { onAdd: (b: Record<string, unknown>) => void; busy: boolean }) {
   const [name, setName] = useState('');
+  const [cat, setCat] = useState('');
   const [qty, setQty] = useState('1');
   const [price, setPrice] = useState('');
 
   const submit = () => {
     if (!name.trim() || !price) return;
-    onAdd({ name: name.trim(), qty: qty ? Number(qty) : 1, unit_price: Number(price) });
-    setName(''); setQty('1'); setPrice('');
+    onAdd({
+      name: name.trim(),
+      catalog_number: cat.trim() || undefined,
+      qty: qty ? Number(qty) : 1,
+      unit_price: Number(price),
+    });
+    setName(''); setCat(''); setQty('1'); setPrice('');
   };
 
   return (
     <div className="smeta-add part-grid">
-      <input className="cell-input" value={name} placeholder="Напр. Масляный фильтр" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+      <div className="part-name-cell">
+        <input className="cell-input grow" value={name} placeholder="Напр. Масляный фильтр" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+        <input className="cell-input art" value={cat} placeholder="Артикул" onChange={(e) => setCat(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+      </div>
       <input className="cell-input ta-r tnum" value={qty} placeholder="кол-во" onChange={(e) => setQty(e.target.value.replace(/\D/g, ''))} inputMode="numeric" />
       <input className="cell-input ta-r tnum" value={price} placeholder="цена" onChange={(e) => setPrice(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" />
       <span />
@@ -591,6 +620,45 @@ function DiscountControl({ wo, disabled, onChange }: { wo: WorkOrder; disabled: 
         )}
       </div>
     </div>
+  );
+}
+
+/** Учёт оплаты: сумма, внесённая клиентом (можно частями) + остаток. */
+function PaidControl({ wo, total, onChange }: { wo: WorkOrder; total: number; onChange: (v: number) => void }) {
+  const paid = wo.paid_amount ?? 0;
+  const [val, setVal] = useState(paid ? String(paid) : '');
+
+  useEffect(() => {
+    setVal((wo.paid_amount ?? 0) ? String(wo.paid_amount) : '');
+  }, [wo.paid_amount]);
+
+  const remainder = Math.max(0, total - paid);
+  const apply = () => {
+    const n = val ? Number(val) : 0;
+    if (n !== paid) onChange(n);
+  };
+
+  return (
+    <>
+      <div className="sum-div" />
+      <div className="discount-row">
+        <span className="muted">Оплачено</span>
+        <input
+          className="input btn-sm tnum"
+          style={{ width: 110, height: '1.875rem', textAlign: 'right' }}
+          value={val}
+          onChange={(e) => setVal(e.target.value.replace(/[^\d.]/g, ''))}
+          onBlur={apply}
+          onKeyDown={(e) => e.key === 'Enter' && apply()}
+          inputMode="decimal"
+          placeholder="0"
+        />
+      </div>
+      <div className="sum-line">
+        <span className="muted">Остаток</span>
+        <span className="mono tnum fw-500">{money(remainder)}</span>
+      </div>
+    </>
   );
 }
 

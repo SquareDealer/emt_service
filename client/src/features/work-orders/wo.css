@@ -69,6 +69,11 @@
 .cell-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px var(--ring); }
 .cell-input.ta-r { text-align: right; }
 
+/* part add-row: name + optional артикул share the first grid column */
+.part-name-cell { display: flex; gap: var(--sp-2); min-width: 0; }
+.part-name-cell .cell-input.grow { flex: 1 1 auto; min-width: 0; }
+.part-name-cell .cell-input.art { flex: 0 0 96px; }
+
 /* summary */
 .wo-summary { position: sticky; top: calc(57px + var(--sp-4)); }
 @media (max-width: 920px) { .wo-summary { position: static; } }

@@ -76,8 +76,10 @@ export interface WorkOrder {
   discount_value: number | null;
   total_cached: number;
   total_frozen: number | null;
+  paid_amount: number;
   closed_at: string | null;
   doc_number: number | null;
+  order_doc_number: number | null;
   created_at: string;
   vehicle?: Vehicle & { client?: Client };
   labor_lines?: LaborLine[];

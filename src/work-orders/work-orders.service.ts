@@ -78,9 +78,34 @@ export class WorkOrdersService {
       wo = await this.loadFull(id);
     }
     const settings = await this.settings.getDocSettings();
-    const buffer = await this.pdf.build(wo, settings);
+    const buffer = await this.pdf.build(wo, settings, 'calc');
     const filename = `kalkulyaciya-${wo.doc_number ?? wo.id.slice(0, 8)}.pdf`;
     return { buffer, filename };
+  }
+
+  /**
+   * Build the «Заказ-наряд» PDF. Available at ANY status (estimate need not be
+   * frozen) — uses its own number sequence, assigned lazily on first print.
+   */
+  async renderOrderPdf(id: string, viewer: Viewer): Promise<{ buffer: Buffer; filename: string }> {
+    await this.findOne(id, viewer); // access check
+    await this.assignOrderNumber(id);
+    const wo = await this.loadFull(id);
+    const settings = await this.settings.getDocSettings();
+    const buffer = await this.pdf.build(wo, settings, 'order');
+    const filename = `zakaz-naryad-${wo.order_doc_number ?? wo.id.slice(0, 8)}.pdf`;
+    return { buffer, filename };
+  }
+
+  /**
+   * Record how much the client has paid (single running total). Allowed on a
+   * closed order too — installments may arrive after pickup, unlike estimate
+   * lines which are frozen on close.
+   */
+  async setPaid(id: string, amount: number, viewer: Viewer): Promise<WorkOrder> {
+    await this.findOne(id, viewer); // access check
+    await this.repo.update(id, { paid_amount: amount });
+    return this.loadFull(id);
   }
 
   async create(dto: CreateWorkOrderDto, viewer: Viewer): Promise<WorkOrder> {
@@ -442,6 +467,22 @@ export class WorkOrdersService {
       `SELECT nextval('work_order_doc_number_seq') AS n`,
     );
     await this.repo.update(id, { doc_number: Number(rows[0].n) });
+  }
+
+  /**
+   * Assign the «Заказ-наряд» number from its own sequence on first print.
+   * Idempotent — repeated prints keep the same number.
+   */
+  private async assignOrderNumber(id: string): Promise<void> {
+    const wo = await this.repo.findOne({
+      where: { id },
+      select: { id: true, order_doc_number: true },
+    });
+    if (!wo || wo.order_doc_number != null) return;
+    const rows = await this.repo.query(
+      `SELECT nextval('work_order_order_number_seq') AS n`,
+    );
+    await this.repo.update(id, { order_doc_number: Number(rows[0].n) });
   }
 
   private async recompute(id: string): Promise<number> {

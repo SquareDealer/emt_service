@@ -16,6 +16,7 @@ import {
   CreateLaborLineDto,
   CreatePartLineDto,
   CreateWorkOrderDto,
+  SetPaidDto,
   UpdateStatusDto,
   UpdateWorkOrderDto,
 } from './dto/work-order.dto';
@@ -146,12 +147,33 @@ export class WorkOrdersController {
     return this.workOrders.close(id, user);
   }
 
+  @Patch(':id/paid')
+  setPaid(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetPaidDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.workOrders.setPaid(id, dto.paid_amount, user);
+  }
+
   @Get(':id/pdf')
   async pdf(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: CurrentUserData,
   ): Promise<StreamableFile> {
     const { buffer, filename } = await this.workOrders.renderPdf(id, user);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${filename}"`,
+    });
+  }
+
+  @Get(':id/order-pdf')
+  async orderPdf(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: CurrentUserData,
+  ): Promise<StreamableFile> {
+    const { buffer, filename } = await this.workOrders.renderOrderPdf(id, user);
     return new StreamableFile(buffer, {
       type: 'application/pdf',
       disposition: `attachment; filename="${filename}"`,

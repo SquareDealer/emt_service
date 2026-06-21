@@ -114,6 +114,21 @@ export class WorkOrder {
   @Column({ name: 'doc_number', type: 'int', nullable: true })
   doc_number: number | null;
 
+  /** Sequential «Заказ-наряд» document number, own sequence, assigned lazily. */
+  @Column({ name: 'order_doc_number', type: 'int', nullable: true })
+  order_doc_number: number | null;
+
+  /** Running total the client has paid; editable even after close. */
+  @Column({
+    name: 'paid_amount',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    default: 0,
+    transformer: numericTransformer,
+  })
+  paid_amount: number;
+
   @OneToMany(() => LaborLine, (l) => l.work_order, { cascade: true })
   labor_lines: LaborLine[];
 
