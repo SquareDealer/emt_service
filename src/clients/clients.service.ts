@@ -1,7 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Client, ClientSource } from '../entities/client.entity';
+import { Vehicle } from '../entities/vehicle.entity';
+import { WorkOrder } from '../entities/work-order.entity';
 import { normalizePhone } from '../common/phone.util';
 
 export interface CreateClientInput {
@@ -63,9 +65,36 @@ export class ClientsService {
     return this.repo.save(client);
   }
 
+  /**
+   * Cascade-delete a client: removes the client, its vehicles and all OPEN work
+   * orders (with their estimate lines via FK CASCADE). Closed work orders are
+   * revenue history (total_frozen/closed_at) — if any exist we refuse and let the
+   * user deal with them first. Done in one transaction so a refusal leaves nothing
+   * half-deleted. The work_orders→vehicles FK is RESTRICT, so orders must go before
+   * the vehicles cascade fires (vehicles cascade with the client delete).
+   */
   async remove(id: string): Promise<void> {
-    const res = await this.repo.delete(id);
-    if (!res.affected) throw new NotFoundException('Клиент не найден');
+    await this.repo.manager.transaction(async (m) => {
+      const client = await m.findOne(Client, { where: { id } });
+      if (!client) throw new NotFoundException('Клиент не найден');
+
+      const vehicles = await m.find(Vehicle, { where: { client_id: id }, select: ['id'] });
+      const vehicleIds = vehicles.map((v) => v.id);
+
+      if (vehicleIds.length) {
+        const closed = await m.count(WorkOrder, {
+          where: { vehicle_id: In(vehicleIds), status: 'closed' },
+        });
+        if (closed > 0) {
+          throw new ConflictException(
+            'Нельзя удалить клиента: есть закрытые наряды (история выручки). Сначала разберитесь с ними.',
+          );
+        }
+        await m.delete(WorkOrder, { vehicle_id: In(vehicleIds) });
+      }
+
+      await m.delete(Client, { id });
+    });
   }
 
   count(): Promise<number> {

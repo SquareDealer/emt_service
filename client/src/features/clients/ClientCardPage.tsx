@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   Pencil,
@@ -9,6 +9,7 @@ import {
   Wrench,
   Phone,
   ChevronRight,
+  Trash2,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
@@ -19,7 +20,7 @@ import {
   money,
   sourceLabel,
 } from '../../lib/format';
-import { Avatar, EmptyState, Spinner, StatusPill } from '../../components/ui';
+import { Avatar, EmptyState, Modal, Spinner, StatusPill } from '../../components/ui';
 import { ClientFormModal } from './ClientFormModal';
 import { VehicleFormModal } from './VehicleFormModal';
 import type { Vehicle } from '../../lib/types';
@@ -35,6 +36,19 @@ export function ClientCardPage() {
   const [addVehicle, setAddVehicle] = useState(false);
   const [editVehicle, setEditVehicle] = useState<Vehicle | null>(null);
   const [creatingWo, setCreatingWo] = useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = useState(false);
+
+  const mDelete = useMutation({
+    mutationFn: () => api.deleteClient(id),
+    onSuccess: () => {
+      setConfirmDel(false);
+      qc.invalidateQueries({ queryKey: ['clients'] });
+      qc.invalidateQueries({ queryKey: ['work-orders'] });
+      toast('Клиент удалён', 'success');
+      navigate('/clients');
+    },
+    onError: (e) => toast((e as Error).message || 'Не удалось удалить клиента', 'error'),
+  });
 
   const { data: client, isLoading } = useQuery({
     queryKey: ['client', id],
@@ -99,9 +113,14 @@ export function ClientCardPage() {
             ) : null}
           </div>
         </div>
-        <button className="btn btn-default" onClick={() => setEditClient(true)}>
-          <Pencil size={15} /> Изменить
-        </button>
+        <div className="row gap-2">
+          <button className="btn btn-default" onClick={() => setEditClient(true)}>
+            <Pencil size={15} /> Изменить
+          </button>
+          <button className="btn btn-danger" onClick={() => setConfirmDel(true)} aria-label="Удалить клиента">
+            <Trash2 size={15} /> Удалить
+          </button>
+        </div>
       </header>
 
       {(client.imported_deals_count > 0 || client.notes) && (
@@ -193,6 +212,27 @@ export function ClientCardPage() {
       <ClientFormModal open={editClient} onClose={() => setEditClient(false)} initial={client} onCreated={() => qc.invalidateQueries({ queryKey: ['client', id] })} />
       <VehicleFormModal open={addVehicle} onClose={() => setAddVehicle(false)} clientId={id} />
       <VehicleFormModal open={!!editVehicle} onClose={() => setEditVehicle(null)} clientId={id} initial={editVehicle ?? undefined} />
+
+      <Modal
+        open={confirmDel}
+        onClose={() => setConfirmDel(false)}
+        title="Удалить клиента?"
+        width={440}
+        footer={
+          <>
+            <button className="btn btn-ghost" onClick={() => setConfirmDel(false)} disabled={mDelete.isPending}>Отмена</button>
+            <button className="btn btn-danger" onClick={() => mDelete.mutate()} disabled={mDelete.isPending}>
+              {mDelete.isPending ? <Spinner /> : <Trash2 size={15} />} Удалить
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm">
+          Клиент «{client.full_name}», его автомобили ({vehicles?.length ?? 0}) и все открытые
+          заказ-наряды будут удалены без возможности восстановления. Если есть закрытые наряды
+          (история выручки), удаление будет отклонено.
+        </p>
+      </Modal>
     </div>
   );
 }

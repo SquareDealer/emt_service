@@ -297,6 +297,15 @@
   .input[aria-invalid='true'] { border-color: var(--danger); }
   .field-error { font-size: var(--text-xs); color: var(--danger); }
   .field-hint { font-size: var(--text-xs); color: var(--faint); }
+  .inline-warn {
+    display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3);
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--danger-wash);
+    border: 1px solid var(--danger);
+    border-radius: var(--r-md);
+    font-size: var(--text-sm); color: var(--ink);
+  }
+  .inline-warn .btn { flex: 0 0 auto; }
   .select {
     appearance: none;
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='gray' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");

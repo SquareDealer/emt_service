@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { addDays, format, isSameDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { Check, User, Car, Wrench, Search, ChevronLeft, ChevronRight, CalendarX } from 'lucide-react';
-import { api } from '../lib/api';
+import { Check, User, Car, Wrench, Search, ChevronLeft, ChevronRight, CalendarX, UserCheck } from 'lucide-react';
+import { api, ApiError } from '../lib/api';
 import { useToast } from '../lib/toast';
 import { phone as fmtPhone } from '../lib/format';
 import type { Vehicle } from '../lib/types';
@@ -34,6 +34,7 @@ export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => v
   const [q, setQ] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [dup, setDup] = useState<{ id: string; name: string } | null>(null);
 
   // step 2
   const [vehMode, setVehMode] = useState<'new' | 'existing'>('new');
@@ -58,6 +59,7 @@ export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => v
       setQ('');
       setFullName('');
       setPhone('');
+      setDup(null);
       setVehMode('new');
       setVehId('');
       setVin('');
@@ -187,10 +189,24 @@ export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => v
       const label = clientMode === 'new' ? fullName.trim() : picked?.full_name ?? 'Клиент';
       navigate(`/work-orders/${wo.id}`, { state: { back: { to: `/clients/${clientId}`, label } } });
     } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        const b = e.body as { clientId?: string; clientName?: string } | null;
+        if (b?.clientId) {
+          setDup({ id: b.clientId, name: b.clientName ?? '' });
+          setStep(1);
+          return;
+        }
+      }
       toast((e as Error).message || 'Не удалось создать', 'error');
     } finally {
       setBusy(false);
     }
+  };
+
+  const showExisting = () => {
+    if (!dup) return;
+    onClose();
+    navigate(`/clients/${dup.id}`);
   };
 
   return (
@@ -242,13 +258,21 @@ export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => v
 
           {clientMode === 'new' ? (
             <>
+              {dup && (
+                <div className="inline-warn">
+                  <span>Клиент с таким номером уже есть{dup.name ? `: ${dup.name}` : ''}.</span>
+                  <button type="button" className="btn btn-default btn-sm" onClick={showExisting}>
+                    <UserCheck size={15} /> Показать
+                  </button>
+                </div>
+              )}
               <div className="field">
                 <label className="label">ФИО</label>
                 <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Иванов Иван" autoFocus />
               </div>
               <div className="field">
                 <label className="label">Телефон</label>
-                <input className="input mono" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+7 999 123-45-67" />
+                <input className="input mono" value={phone} onChange={(e) => { setPhone(e.target.value); setDup(null); }} placeholder="+7 999 123-45-67" />
               </div>
             </>
           ) : (
