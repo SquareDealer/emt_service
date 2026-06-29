@@ -20,8 +20,8 @@ export type TimelineOrientation = 'vertical' | 'horizontal';
 /** Width (px) of the day-label column in horizontal mode. */
 const LABEL_W = 64;
 /** Min band height + per-overlap-lane height (px) for a day row in horizontal mode. */
-const BAND_MIN = 60;
-const PER_LANE = 40;
+const BAND_MIN = 120;
+const PER_LANE = 80;
 /** Legibility floor: px per minute below which the horizontal axis scrolls instead. */
 const H_MIN_PX_PER_MIN = 0.7;
 
