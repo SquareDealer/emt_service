@@ -221,6 +221,40 @@ export function ScheduleTimeline({
     onSelect?.(start.toISOString(), dur);
   };
 
+  // Grab-pan the viewport by dragging empty background (both axes → diagonal).
+  // Disabled in selectable/picker mode, where empty-space clicks place a slot.
+  // Event presses stopPropagation in onBlockDown, so they never start a pan.
+  const panEnabled = !selectable;
+  const panRef = useRef<{ x: number; y: number; l: number; t: number } | null>(null);
+  const onScrollDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!panEnabled || e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('.stl-ev')) return; // let event drag/click win
+    const el = scrollRef.current;
+    if (!el) return;
+    e.preventDefault();
+    panRef.current = { x: e.clientX, y: e.clientY, l: el.scrollLeft, t: el.scrollTop };
+    el.setPointerCapture(e.pointerId);
+    el.classList.add('stl-panning');
+  };
+  const onScrollMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const p = panRef.current;
+    const el = scrollRef.current;
+    if (!p || !el) return;
+    el.scrollLeft = p.l - (e.clientX - p.x);
+    el.scrollTop = p.t - (e.clientY - p.y);
+  };
+  const onScrollUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = scrollRef.current;
+    if (!panRef.current || !el) return;
+    panRef.current = null;
+    el.releasePointerCapture?.(e.pointerId);
+    el.classList.remove('stl-panning');
+  };
+  const panProps = panEnabled
+    ? { onPointerDown: onScrollDown, onPointerMove: onScrollMove, onPointerUp: onScrollUp, onPointerCancel: onScrollUp }
+    : {};
+  const scrollClass = `stl-scroll${panEnabled ? ' stl-pannable' : ''}`;
+
   const renderEvent = (
     pos: { event: TimelineEvent; lane: number; laneCount: number },
     dayIndex: number,
@@ -310,7 +344,7 @@ export function ScheduleTimeline({
   if (horizontal) {
     return (
       <div className="stl" data-orient="h">
-        <div className="stl-scroll" ref={scrollRef}>
+        <div className={scrollClass} ref={scrollRef} {...panProps}>
           <div
             className="stl-grid"
             data-orient="h"
@@ -342,7 +376,7 @@ export function ScheduleTimeline({
                 <div
                   key={`lane-${d.toISOString()}`}
                   className="stl-lane"
-                  style={{ width: gridLength, cursor: selectable ? 'copy' : 'default' }}
+                  style={{ width: gridLength, cursor: selectable ? 'copy' : undefined }}
                   onPointerDown={selectable ? (e) => onEmptyDown(e, di) : undefined}
                 >
                   {marks.map((h) => (
@@ -368,7 +402,7 @@ export function ScheduleTimeline({
   // ----- Vertical layout (default): time down the page, days as columns -----
   return (
     <div className="stl">
-      <div className="stl-scroll" ref={scrollRef}>
+      <div className={scrollClass} ref={scrollRef} {...panProps}>
         <div
           className="stl-grid"
           style={{ gridTemplateColumns: `48px repeat(${days.length}, minmax(0, 1fr))` }}
@@ -401,7 +435,7 @@ export function ScheduleTimeline({
               <div
                 key={`c-${d.toISOString()}`}
                 className="stl-col"
-                style={{ height: gridLength, cursor: selectable ? 'copy' : 'default' }}
+                style={{ height: gridLength, cursor: selectable ? 'copy' : undefined }}
                 onPointerDown={selectable ? (e) => onEmptyDown(e, di) : undefined}
               >
                 {marks.map((h) => (

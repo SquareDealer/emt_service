@@ -9,6 +9,8 @@
   border-radius: var(--r-lg);
   background: var(--surface);
 }
+.stl-pannable { cursor: grab; }
+.stl-pannable.stl-panning { cursor: grabbing; user-select: none; }
 
 .stl-grid {
   display: grid;
