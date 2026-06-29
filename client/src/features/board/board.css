@@ -6,6 +6,11 @@
   overflow-x: auto;
   padding-bottom: var(--sp-3);
   align-items: start;
+  cursor: grab;
+}
+.board.panning {
+  cursor: grabbing;
+  user-select: none;
 }
 
 .board-col {

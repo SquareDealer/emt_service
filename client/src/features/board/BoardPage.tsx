@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -56,6 +56,34 @@ export function BoardPage() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
+  // Grab-pan the board horizontally by dragging empty background. Cards keep their
+  // own dnd-kit drag (PointerSensor), so we bail out when the press lands on a card.
+  const boardRef = useRef<HTMLDivElement>(null);
+  const panRef = useRef<{ startX: number; startScroll: number } | null>(null);
+
+  const onBoardPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('.board-card-drag')) return; // let dnd-kit handle cards
+    const el = boardRef.current;
+    if (!el) return;
+    panRef.current = { startX: e.clientX, startScroll: el.scrollLeft };
+    el.setPointerCapture(e.pointerId);
+    el.classList.add('panning');
+  };
+  const onBoardPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const pan = panRef.current;
+    const el = boardRef.current;
+    if (!pan || !el) return;
+    el.scrollLeft = pan.startScroll - (e.clientX - pan.startX);
+  };
+  const endPan = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = boardRef.current;
+    if (!panRef.current || !el) return;
+    panRef.current = null;
+    el.releasePointerCapture?.(e.pointerId);
+    el.classList.remove('panning');
+  };
+
   const activeWo = useMemo(() => {
     if (!activeId) return null;
     for (const s of STATUS_ORDER) {
@@ -105,7 +133,14 @@ export function BoardPage() {
         <div className="center" style={{ minHeight: 280 }}><Spinner size={22} /></div>
       ) : (
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-          <div className="board">
+          <div
+            className="board"
+            ref={boardRef}
+            onPointerDown={onBoardPointerDown}
+            onPointerMove={onBoardPointerMove}
+            onPointerUp={endPan}
+            onPointerCancel={endPan}
+          >
             {STATUS_ORDER.map((s) => (
               <Column key={s} status={s} items={cols[s]} showMaster={showMaster} onOpen={(id) => navigate(`/work-orders/${id}`, { state: { back: { to: '/board', label: 'Доска' } } })} />
             ))}
