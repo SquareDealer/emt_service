@@ -23,20 +23,10 @@
   height: 57px;
   border-bottom: 1px solid var(--border);
 }
-.brand-mark {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  background: var(--primary);
-  color: var(--primary-on);
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-size: 14px;
-  flex-shrink: 0;
-}
-.brand-name { font-weight: 600; font-size: var(--text-base); letter-spacing: -0.01em; }
-.brand-sub { font-size: 10px; color: var(--faint); letter-spacing: 0.06em; text-transform: uppercase; }
+.brand-logo { height: 30px; width: auto; display: block; }
+.brand-logo-dark { display: none; }
+[data-theme='dark'] .brand-logo-light { display: none; }
+[data-theme='dark'] .brand-logo-dark { display: block; }
 
 .nav { display: flex; flex-direction: column; gap: 2px; padding: var(--sp-3) var(--sp-2); }
 .nav-link {

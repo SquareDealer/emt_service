@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import * as fs from 'fs';
 import * as path from 'path';
 import PdfPrinter from 'pdfmake';
 import type {
@@ -21,6 +22,7 @@ import { rublesInWords } from '../../common/rubles-in-words.util';
 import { PricingService } from '../pricing.service';
 
 const FONTS_DIR = path.join(process.cwd(), 'assets', 'fonts');
+const LOGO_PATH = path.join(process.cwd(), 'assets', 'emt-logo-light-theme.png');
 
 /** Which document to render: the post-close calculation or the work order. */
 export type DocVariant = 'calc' | 'order';
@@ -43,6 +45,19 @@ export class WorkOrderPdfService {
   });
 
   constructor(private readonly pricing: PricingService) {}
+
+  /** EMT letterhead logo as a base64 data URI (read once; '' if missing). */
+  private logoCache?: string;
+  private logo(): string | null {
+    if (this.logoCache === undefined) {
+      try {
+        this.logoCache = 'data:image/png;base64,' + fs.readFileSync(LOGO_PATH).toString('base64');
+      } catch {
+        this.logoCache = '';
+      }
+    }
+    return this.logoCache || null;
+  }
 
   async build(
     wo: WorkOrder,
@@ -257,6 +272,7 @@ export class WorkOrderPdfService {
 
     const docNo = wo.order_doc_number != null ? String(wo.order_doc_number) : '—';
     const docDate = this.dmy(wo.closed_at ?? wo.created_at);
+    const logo = this.logo();
     const v = wo.vehicle;
     const client = v?.client;
     const masterName = wo.assigned_master?.name ?? '';
@@ -278,14 +294,14 @@ export class WorkOrderPdfService {
       defaultStyle: { font: 'Roboto', fontSize: 8, lineHeight: 1.1 },
       styles: this.styles(),
       content: [
-        // --- header ---
+        // --- header: EMT logo (top-left) + company requisites (right) ---
         {
           columns: [
+            logo ? { image: logo, width: 130, margin: [0, 0, 0, 0] } : { text: '', width: 'auto' },
             { text: '', width: '*' },
             this.companyBlock(s, companyName),
           ],
         },
-        { text: 'STO', alignment: 'center', bold: true, fontSize: 16, margin: [0, 2, 0, 0] },
         {
           text: `Заказ наряд № ${docNo} от ${docDate}`,
           style: 'docTitle',

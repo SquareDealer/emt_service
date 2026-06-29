@@ -65,11 +65,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       {drawer && <div className="sidebar-backdrop" onClick={() => setDrawer(false)} />}
       <aside className={`sidebar ${drawer ? 'open' : ''}`}>
         <div className="brand">
-          <div className="brand-mark">Т</div>
-          <div className="col">
-            <span className="brand-name">Татарин CRM</span>
-            <span className="brand-sub">MINI · сервис</span>
-          </div>
+          <img className="brand-logo brand-logo-light" src="/emt-logo-light-theme.png" alt="EMT Service" />
+          <img className="brand-logo brand-logo-dark" src="/emt-logo-dark-theme.png" alt="EMT Service" />
         </div>
         <nav className="nav">
           {nav.map(({ to, label, icon: Icon }) => (
