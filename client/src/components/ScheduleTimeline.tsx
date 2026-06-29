@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import {
@@ -15,11 +15,23 @@ import './schedule.css';
 
 export const SELECTION_ID = '__selection__';
 
+export type TimelineOrientation = 'vertical' | 'horizontal';
+
+/** Width (px) of the day-label column in horizontal mode. */
+const LABEL_W = 64;
+/** Min band height + per-overlap-lane height (px) for a day row in horizontal mode. */
+const BAND_MIN = 60;
+const PER_LANE = 40;
+/** Legibility floor: px per minute below which the horizontal axis scrolls instead. */
+const H_MIN_PX_PER_MIN = 0.7;
+
 export interface ScheduleTimelineProps {
   days: Date[];
   events: TimelineEvent[];
   cfg: TimelineCfg;
   now?: Date;
+  /** Time runs down (vertical, default) or left→right (horizontal). */
+  orientation?: TimelineOrientation;
   /** Allow drag-move + resize on real events. */
   interactive?: boolean;
   /** Allow click on empty space to place/move the selection block. */
@@ -41,7 +53,8 @@ interface DragSession {
   kind: 'event' | 'selection';
   mode: 'move' | 'resize';
   dayIndex: number;
-  startClientY: number;
+  /** Client coordinate along the time axis (Y when vertical, X when horizontal). */
+  startClient: number;
   origStartMin: number;
   origDurMin: number;
   moved: boolean;
@@ -58,6 +71,7 @@ export function ScheduleTimeline({
   events,
   cfg,
   now = new Date(),
+  orientation = 'vertical',
   interactive = false,
   selectable = false,
   selection = null,
@@ -68,17 +82,46 @@ export function ScheduleTimeline({
   onEventResize,
   onSelect,
 }: ScheduleTimelineProps) {
+  const horizontal = orientation === 'horizontal';
   const dragRef = useRef<DragSession | null>(null);
   const previewRef = useRef<Preview | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
 
+  // Measure the scroll viewport so the horizontal timeline can stretch the time
+  // axis to fill the full width instead of using a fixed px-per-minute.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollW, setScrollW] = useState(0);
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const update = () => setScrollW(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const dayStartMin = cfg.startHour * 60;
   const dayEndMin = cfg.endHour * 60;
-  const gridHeight = windowMinutes(cfg) * cfg.pxPerMin;
+  const winMin = windowMinutes(cfg);
   const marks = hourMarks(cfg);
 
   const allEvents = selection ? [...events, selection] : events;
   const perDay = days.map((d) => assignLanes(allEvents.filter((e) => isSameDay(e.start, d))));
+
+  // Horizontal: px-per-minute is derived to fill the viewport width (with a
+  // legibility floor that lets it scroll if the window is very narrow). Vertical
+  // keeps the configured scale exactly — behaviour-identical to before.
+  const axisPx = scrollW ? Math.max(0, scrollW - LABEL_W) : winMin * cfg.pxPerMin;
+  const hPxPerMin = winMin > 0 ? Math.max(axisPx, winMin * H_MIN_PX_PER_MIN) / winMin : cfg.pxPerMin;
+  const pxPerMin = horizontal ? hPxPerMin : cfg.pxPerMin;
+  // Length of the time axis in px (height when vertical, width when horizontal).
+  const gridLength = winMin * pxPerMin;
+
+  // Horizontal day-row heights grow with the day's max overlap so ≥2 parallel
+  // works always fit, each lane keeping ~PER_LANE px.
+  const laneMax = perDay.map((day) => day.reduce((m, p) => Math.max(m, p.laneCount), 1));
+  const bandPx = (di: number) => Math.max(BAND_MIN, laneMax[di] * PER_LANE);
 
   const setPrev = (p: Preview | null) => {
     previewRef.current = p;
@@ -95,6 +138,9 @@ export function ScheduleTimeline({
       onEventResize?.(s.id, durMin);
     }
   };
+
+  /** Client coordinate along the time axis for a pointer event. */
+  const axisClient = (e: React.PointerEvent) => (horizontal ? e.clientX : e.clientY);
 
   const onBlockDown = (
     e: React.PointerEvent,
@@ -113,7 +159,7 @@ export function ScheduleTimeline({
       kind,
       mode,
       dayIndex,
-      startClientY: e.clientY,
+      startClient: axisClient(e),
       origStartMin: minutesFromMidnight(ev.start),
       origDurMin: ev.durationMin,
       moved: false,
@@ -123,9 +169,9 @@ export function ScheduleTimeline({
   const onPtrMove = (e: React.PointerEvent) => {
     const s = dragRef.current;
     if (!s) return;
-    const dy = e.clientY - s.startClientY;
-    if (Math.abs(dy) > 3) s.moved = true;
-    const deltaMin = dy / cfg.pxPerMin;
+    const delta = axisClient(e) - s.startClient;
+    if (Math.abs(delta) > 3) s.moved = true;
+    const deltaMin = delta / pxPerMin;
     if (s.mode === 'move') {
       const startMin = clamp(
         snapMinutes(s.origStartMin + deltaMin, cfg.slotMin),
@@ -164,10 +210,10 @@ export function ScheduleTimeline({
   const onEmptyDown = (e: React.PointerEvent, dayIndex: number) => {
     if (!selectable) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const localY = e.clientY - rect.top;
+    const local = horizontal ? e.clientX - rect.left : e.clientY - rect.top;
     const dur = selection?.durationMin ?? defaultDurationMin;
     const startMin = clamp(
-      snapMinutes(dayStartMin + localY / cfg.pxPerMin, cfg.slotMin),
+      snapMinutes(dayStartMin + local / pxPerMin, cfg.slotMin),
       dayStartMin,
       Math.max(dayStartMin, dayEndMin - dur),
     );
@@ -190,15 +236,32 @@ export function ScheduleTimeline({
       startMin = preview.startMin;
       durMin = preview.durMin;
     }
-    const top = (startMin - dayStartMin) * cfg.pxPerMin;
-    const height = Math.max(durMin, 1) * cfg.pxPerMin;
-    const widthPct = 100 / pos.laneCount;
-    const leftPct = pos.lane * widthPct;
+    const mainStart = (startMin - dayStartMin) * pxPerMin;
+    const mainSize = Math.max(durMin, 1) * pxPerMin;
+    const crossSizePct = 100 / pos.laneCount;
+    const crossPct = pos.lane * crossSizePct;
 
     const day = days[dayIndex];
     const start = dateAtMinutes(day, startMin);
     const end = new Date(start.getTime() + durMin * 60_000);
     const dragging = preview?.id === ev.id;
+    const room = mainSize; // px available along the time axis for labels
+
+    const style: React.CSSProperties = horizontal
+      ? {
+          left: mainStart,
+          width: mainSize,
+          top: `calc(${crossPct}% + 2px)`,
+          height: `calc(${crossSizePct}% - 4px)`,
+          cursor: draggable ? 'grab' : clickable ? 'pointer' : 'default',
+        }
+      : {
+          top: mainStart,
+          height: mainSize,
+          left: `calc(${crossPct}% + 2px)`,
+          width: `calc(${crossSizePct}% - 4px)`,
+          cursor: draggable ? 'grab' : clickable ? 'pointer' : 'default',
+        };
 
     return (
       <div
@@ -209,13 +272,7 @@ export function ScheduleTimeline({
         data-drag={dragging || undefined}
         role={clickable || draggable ? 'button' : undefined}
         tabIndex={clickable ? 0 : undefined}
-        style={{
-          top,
-          height,
-          left: `calc(${leftPct}% + 2px)`,
-          width: `calc(${widthPct}% - 4px)`,
-          cursor: draggable ? 'grab' : clickable ? 'pointer' : 'default',
-        }}
+        style={style}
         onPointerDown={draggable ? (e) => onBlockDown(e, ev, dayIndex, 'move') : undefined}
         onPointerMove={draggable ? onPtrMove : undefined}
         onPointerUp={draggable ? onPtrUp : undefined}
@@ -235,11 +292,11 @@ export function ScheduleTimeline({
             <span className="stl-ev-master truncate" title={ev.masterName}>{ev.masterName}</span>
           )}
         </div>
-        {ev.title && height > 30 && <div className="stl-ev-title truncate">{ev.title}</div>}
-        {ev.subtitle && height > 46 && <div className="stl-ev-sub truncate">{ev.subtitle}</div>}
+        {ev.title && room > 30 && <div className="stl-ev-title truncate">{ev.title}</div>}
+        {ev.subtitle && room > 46 && <div className="stl-ev-sub truncate">{ev.subtitle}</div>}
         {draggable && (
           <div
-            className="stl-ev-resize"
+            className={horizontal ? 'stl-ev-resize-h' : 'stl-ev-resize'}
             onPointerDown={(e) => onBlockDown(e, ev, dayIndex, 'resize')}
             onPointerMove={onPtrMove}
             onPointerUp={onPtrUp}
@@ -249,9 +306,69 @@ export function ScheduleTimeline({
     );
   };
 
+  // ----- Horizontal layout: time across the top, days as rows -----
+  if (horizontal) {
+    return (
+      <div className="stl" data-orient="h">
+        <div className="stl-scroll" ref={scrollRef}>
+          <div
+            className="stl-grid"
+            data-orient="h"
+            style={{
+              gridTemplateColumns: `${LABEL_W}px ${gridLength}px`,
+              gridTemplateRows: `28px ${days.map((_, di) => `${bandPx(di)}px`).join(' ')}`,
+            }}
+          >
+            {showHeaders && <div className="stl-corner" />}
+            {showHeaders && (
+              <div className="stl-axis-h" style={{ width: gridLength }}>
+                {marks.map((h) => (
+                  <div key={h} className="stl-hour-h" style={{ left: (h * 60 - dayStartMin) * pxPerMin }}>
+                    {String(h).padStart(2, '0')}:00
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {days.map((d, di) => {
+              const today = isSameDay(d, now);
+              const nowMin = minutesFromMidnight(now);
+              const nowVisible = today && nowMin >= dayStartMin && nowMin <= dayEndMin;
+              return [
+                <div key={`rh-${d.toISOString()}`} className="stl-rowhead" data-today={today || undefined}>
+                  <span className="stl-dow">{format(d, 'EEEEEE', { locale: ru })}</span>
+                  <span className="stl-date">{format(d, 'd MMM', { locale: ru })}</span>
+                </div>,
+                <div
+                  key={`lane-${d.toISOString()}`}
+                  className="stl-lane"
+                  style={{ width: gridLength, cursor: selectable ? 'copy' : 'default' }}
+                  onPointerDown={selectable ? (e) => onEmptyDown(e, di) : undefined}
+                >
+                  {marks.map((h) => (
+                    <div
+                      key={h}
+                      className="stl-line-v"
+                      style={{ left: (h * 60 - dayStartMin) * pxPerMin }}
+                    />
+                  ))}
+                  {nowVisible && (
+                    <div className="stl-now-v" style={{ left: (nowMin - dayStartMin) * pxPerMin }} />
+                  )}
+                  {perDay[di].map((p) => renderEvent(p, di))}
+                </div>,
+              ];
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ----- Vertical layout (default): time down the page, days as columns -----
   return (
     <div className="stl">
-      <div className="stl-scroll">
+      <div className="stl-scroll" ref={scrollRef}>
         <div
           className="stl-grid"
           style={{ gridTemplateColumns: `48px repeat(${days.length}, minmax(0, 1fr))` }}
@@ -268,9 +385,9 @@ export function ScheduleTimeline({
             </>
           )}
 
-          <div className="stl-axis" style={{ height: gridHeight }}>
+          <div className="stl-axis" style={{ height: gridLength }}>
             {marks.map((h) => (
-              <div key={h} className="stl-hour" style={{ top: (h * 60 - dayStartMin) * cfg.pxPerMin }}>
+              <div key={h} className="stl-hour" style={{ top: (h * 60 - dayStartMin) * pxPerMin }}>
                 {String(h).padStart(2, '0')}:00
               </div>
             ))}
@@ -284,18 +401,18 @@ export function ScheduleTimeline({
               <div
                 key={`c-${d.toISOString()}`}
                 className="stl-col"
-                style={{ height: gridHeight, cursor: selectable ? 'copy' : 'default' }}
+                style={{ height: gridLength, cursor: selectable ? 'copy' : 'default' }}
                 onPointerDown={selectable ? (e) => onEmptyDown(e, di) : undefined}
               >
                 {marks.map((h) => (
                   <div
                     key={h}
                     className="stl-line"
-                    style={{ top: (h * 60 - dayStartMin) * cfg.pxPerMin }}
+                    style={{ top: (h * 60 - dayStartMin) * pxPerMin }}
                   />
                 ))}
                 {nowVisible && (
-                  <div className="stl-now" style={{ top: (nowMin - dayStartMin) * cfg.pxPerMin }} />
+                  <div className="stl-now" style={{ top: (nowMin - dayStartMin) * pxPerMin }} />
                 )}
                 {perDay[di].map((pos) => renderEvent(pos, di))}
               </div>

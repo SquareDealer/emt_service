@@ -202,3 +202,97 @@
 .stl-ev:hover .stl-ev-resize::after {
   opacity: 0.35;
 }
+
+/* --- horizontal orientation: time across the top, days as rows --- */
+.stl-grid[data-orient='h'] .stl-corner {
+  left: 0;
+  z-index: 5; /* above both sticky axis and row heads */
+}
+/* top time axis strip (sticky on vertical scroll) */
+.stl-axis-h {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.stl-hour-h {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* left day label column (sticky on horizontal scroll) */
+.stl-rowhead {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: var(--sp-1);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+.stl-rowhead[data-today] {
+  background: var(--primary-wash);
+}
+.stl-lane {
+  position: relative;
+  border-top: 1px solid var(--border);
+  touch-action: none;
+}
+.stl-line-v {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--border);
+  opacity: 0.6;
+  pointer-events: none;
+}
+.stl-now-v {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 2px solid var(--danger);
+  pointer-events: none;
+  z-index: 2;
+}
+.stl-now-v::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+.stl-ev-resize-h {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 8px;
+  cursor: ew-resize;
+}
+.stl-ev-resize-h::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 22px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0;
+}
+.stl-ev:hover .stl-ev-resize-h::after {
+  opacity: 0.35;
+}

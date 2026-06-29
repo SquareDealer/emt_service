@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { addDays, addWeeks, endOfWeek, format, startOfWeek } from 'date-fns';
@@ -12,10 +12,13 @@ import type { WorkOrder } from '../../lib/types';
 import { hasConflict } from '../../lib/schedule';
 import type { TimelineCfg, TimelineEvent } from '../../lib/schedule';
 import { ScheduleTimeline } from '../../components/ScheduleTimeline';
+import type { TimelineOrientation } from '../../components/ScheduleTimeline';
 import { Spinner } from '../../components/ui';
 import './calendar.css';
 
 type View = 'week' | 'day';
+
+const ORIENT_KEY = 'crm-cal-orientation';
 
 function eventTitle(w: WorkOrder): string {
   return w.title?.trim() || `${w.vehicle?.model || 'MINI'} ${w.vehicle?.plate || ''}`.trim();
@@ -29,6 +32,12 @@ export function CalendarPage() {
   const showMaster = canAssignMaster(user?.role);
   const [anchor, setAnchor] = useState(new Date());
   const [view, setView] = useState<View>('week');
+  const [orientation, setOrientation] = useState<TimelineOrientation>(
+    () => (localStorage.getItem(ORIENT_KEY) as TimelineOrientation) || 'vertical',
+  );
+  useEffect(() => {
+    try { localStorage.setItem(ORIENT_KEY, orientation); } catch { /* ignore */ }
+  }, [orientation]);
 
   const days = useMemo(() => {
     if (view === 'day') return [anchor];
@@ -134,9 +143,13 @@ export function CalendarPage() {
             <button className="seg-btn" data-on={view === 'week'} onClick={() => setView('week')}>Неделя</button>
             <button className="seg-btn" data-on={view === 'day'} onClick={() => setView('day')}>День</button>
           </div>
+          <div className="seg">
+            <button className="seg-btn" data-on={orientation === 'vertical'} onClick={() => setOrientation('vertical')}>Верт.</button>
+            <button className="seg-btn" data-on={orientation === 'horizontal'} onClick={() => setOrientation('horizontal')}>Гориз.</button>
+          </div>
           <div className="row gap-1">
             <button className="btn btn-default btn-icon" onClick={() => move(-1)} aria-label="Назад"><ChevronLeft size={16} /></button>
-            <button className="btn btn-default btn-sm" onClick={() => setAnchor(new Date())}>Сегодня</button>
+            <button className="btn btn-default" onClick={() => setAnchor(new Date())}>Сегодня</button>
             <button className="btn btn-default btn-icon" onClick={() => move(1)} aria-label="Вперёд"><ChevronRight size={16} /></button>
           </div>
         </div>
@@ -151,6 +164,7 @@ export function CalendarPage() {
           days={days}
           events={events}
           cfg={cfg}
+          orientation={orientation}
           interactive
           onEventClick={(id) =>
             navigate(`/work-orders/${id}`, { state: { back: { to: '/calendar', label: 'Календарь' } } })
