@@ -54,12 +54,15 @@ export interface LaborLine {
   price_override: number | null;
 }
 
+export type PartUnit = 'pcs' | 'l';
+
 export interface PartLine {
   id: string;
   work_order_id: string;
   name: string;
   catalog_number: string | null;
   qty: number;
+  unit: PartUnit;
   unit_price: number;
 }
 

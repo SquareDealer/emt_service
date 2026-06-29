@@ -13,6 +13,7 @@ import {
   DiscountType,
   WorkOrderStatus,
 } from '../../entities/work-order.entity';
+import { PartUnit } from '../../entities/part-line.entity';
 
 const STATUSES: WorkOrderStatus[] = [
   'scheduled',
@@ -130,12 +131,64 @@ export class CreatePartLineDto {
   @IsString()
   catalog_number?: string;
 
+  // numeric: pieces are whole, liters can be fractional (e.g. 1.5)
   @IsOptional()
-  @IsInt()
-  @Min(1)
+  @IsNumber()
+  @Min(0.001)
   qty?: number;
+
+  @IsOptional()
+  @IsIn(['pcs', 'l'])
+  unit?: PartUnit;
 
   @IsNumber()
   @Min(0)
   unit_price: number;
+}
+
+export class UpdateLaborLineDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  name?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  hours?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  rate_snapshot?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  price_override?: number | null;
+}
+
+export class UpdatePartLineDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  catalog_number?: string | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.001)
+  qty?: number;
+
+  @IsOptional()
+  @IsIn(['pcs', 'l'])
+  unit?: PartUnit;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  unit_price?: number;
 }

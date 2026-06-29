@@ -15,6 +15,7 @@ import { AddWorkOrderDocNumber1718400000000 } from './migrations/1718400000000-A
 import { AddUserRolesAndActive1718500000000 } from './migrations/1718500000000-AddUserRolesAndActive';
 import { AddWorkOrderPaidAmount1718600000000 } from './migrations/1718600000000-AddWorkOrderPaidAmount';
 import { AddWorkOrderOrderNumber1718700000000 } from './migrations/1718700000000-AddWorkOrderOrderNumber';
+import { AddPartLineUnit1718800000000 } from './migrations/1718800000000-AddPartLineUnit';
 
 loadEnv();
 
@@ -36,6 +37,7 @@ export const migrations = [
   AddUserRolesAndActive1718500000000,
   AddWorkOrderPaidAmount1718600000000,
   AddWorkOrderOrderNumber1718700000000,
+  AddPartLineUnit1718800000000,
 ];
 
 /** Standalone DataSource for the TypeORM CLI (migrations). */

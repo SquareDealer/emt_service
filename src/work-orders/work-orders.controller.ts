@@ -17,6 +17,8 @@ import {
   CreatePartLineDto,
   CreateWorkOrderDto,
   SetPaidDto,
+  UpdateLaborLineDto,
+  UpdatePartLineDto,
   UpdateStatusDto,
   UpdateWorkOrderDto,
 } from './dto/work-order.dto';
@@ -112,6 +114,16 @@ export class WorkOrdersController {
     return this.workOrders.addLaborLine(id, dto, user);
   }
 
+  @Patch(':id/labor/:lineId')
+  updateLabor(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('lineId', ParseUUIDPipe) lineId: string,
+    @Body() dto: UpdateLaborLineDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.workOrders.updateLaborLine(id, lineId, dto, user);
+  }
+
   @Delete(':id/labor/:lineId')
   removeLabor(
     @Param('id', ParseUUIDPipe) id: string,
@@ -128,6 +140,16 @@ export class WorkOrdersController {
     @CurrentUser() user: CurrentUserData,
   ) {
     return this.workOrders.addPartLine(id, dto, user);
+  }
+
+  @Patch(':id/parts/:lineId')
+  updatePart(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('lineId', ParseUUIDPipe) lineId: string,
+    @Body() dto: UpdatePartLineDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.workOrders.updatePartLine(id, lineId, dto, user);
   }
 
   @Delete(':id/parts/:lineId')

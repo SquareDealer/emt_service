@@ -8,6 +8,9 @@ import {
 import { numericTransformer } from '../common/numeric.transformer';
 import { WorkOrder } from './work-order.entity';
 
+/** Unit of measure for a part line: pieces or liters (liters allow fractional qty). */
+export type PartUnit = 'pcs' | 'l';
+
 @Entity('part_lines')
 export class PartLine {
   @PrimaryGeneratedColumn('uuid')
@@ -26,8 +29,11 @@ export class PartLine {
   @Column({ name: 'catalog_number', type: 'text', nullable: true })
   catalog_number: string | null;
 
-  @Column({ type: 'int', default: 1 })
+  @Column({ type: 'numeric', precision: 12, scale: 3, default: 1, transformer: numericTransformer })
   qty: number;
+
+  @Column({ type: 'text', default: 'pcs' })
+  unit: PartUnit;
 
   @Column({ name: 'unit_price', type: 'numeric', precision: 12, scale: 2, transformer: numericTransformer })
   unit_price: number;

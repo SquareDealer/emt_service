@@ -29,6 +29,10 @@ describe('PricingService', () => {
     it('qty × unit_price', () => {
       expect(p.partLineTotal({ qty: 2, unit_price: 800 })).toBe(1600);
     });
+
+    it('fractional qty (liters) multiplies correctly', () => {
+      expect(p.partLineTotal({ qty: 1.5, unit_price: 350 })).toBe(525);
+    });
   });
 
   describe('computeTotal', () => {
@@ -64,6 +68,11 @@ describe('PricingService', () => {
 
     it('rounds to 2 decimals', () => {
       expect(p.computeTotal([{ hours: 0.333, rate_snapshot: 100 }], [])).toBe(33.3);
+    });
+
+    it('fractional part qty rounds at the total', () => {
+      // 1.5 л × 333.33 = 499.995 → 500.00
+      expect(p.computeTotal([], [{ qty: 1.5, unit_price: 333.33 }])).toBe(500);
     });
   });
 });

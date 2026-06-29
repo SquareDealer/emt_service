@@ -19,6 +19,8 @@ import {
   CreateLaborLineDto,
   CreatePartLineDto,
   CreateWorkOrderDto,
+  UpdateLaborLineDto,
+  UpdatePartLineDto,
   UpdateWorkOrderDto,
 } from './dto/work-order.dto';
 
@@ -324,6 +326,29 @@ export class WorkOrdersService {
     return this.loadFull(id);
   }
 
+  async updateLaborLine(
+    id: string,
+    lineId: string,
+    dto: UpdateLaborLineDto,
+    viewer: Viewer,
+  ): Promise<WorkOrder> {
+    await this.assertOpen(id, viewer);
+    const line = await this.laborRepo.findOne({ where: { id: lineId, work_order_id: id } });
+    if (!line) throw new NotFoundException('Строка работы не найдена');
+
+    if (dto.name !== undefined) {
+      if (!dto.name) throw new BadRequestException('Не указано название операции');
+      line.name = dto.name;
+    }
+    if (dto.hours !== undefined) line.hours = dto.hours ?? null;
+    if (dto.rate_snapshot !== undefined) line.rate_snapshot = dto.rate_snapshot;
+    if (dto.price_override !== undefined) line.price_override = dto.price_override ?? null;
+
+    await this.laborRepo.save(line);
+    await this.recompute(id);
+    return this.loadFull(id);
+  }
+
   async removeLaborLine(id: string, lineId: string, viewer: Viewer): Promise<WorkOrder> {
     await this.assertOpen(id, viewer);
     await this.laborRepo.delete({ id: lineId, work_order_id: id });
@@ -338,8 +363,33 @@ export class WorkOrdersService {
       name: dto.name,
       catalog_number: dto.catalog_number ?? null,
       qty: dto.qty ?? 1,
+      unit: dto.unit ?? 'pcs',
       unit_price: dto.unit_price,
     });
+    await this.partRepo.save(line);
+    await this.recompute(id);
+    return this.loadFull(id);
+  }
+
+  async updatePartLine(
+    id: string,
+    lineId: string,
+    dto: UpdatePartLineDto,
+    viewer: Viewer,
+  ): Promise<WorkOrder> {
+    await this.assertOpen(id, viewer);
+    const line = await this.partRepo.findOne({ where: { id: lineId, work_order_id: id } });
+    if (!line) throw new NotFoundException('Строка запчасти не найдена');
+
+    if (dto.name !== undefined) {
+      if (!dto.name) throw new BadRequestException('Не указано название запчасти');
+      line.name = dto.name;
+    }
+    if (dto.catalog_number !== undefined) line.catalog_number = dto.catalog_number ?? null;
+    if (dto.qty !== undefined) line.qty = dto.qty;
+    if (dto.unit !== undefined) line.unit = dto.unit;
+    if (dto.unit_price !== undefined) line.unit_price = dto.unit_price;
+
     await this.partRepo.save(line);
     await this.recompute(id);
     return this.loadFull(id);

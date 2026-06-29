@@ -7,6 +7,8 @@ import {
   ArrowLeft,
   Plus,
   Trash2,
+  Pencil,
+  X,
   Wrench,
   Package,
   Lock,
@@ -36,7 +38,7 @@ import {
   dateTime,
 } from '../../lib/format';
 import { STATUS_LABEL, STATUS_ORDER } from '../../lib/types';
-import type { AppSettings, User, WorkOrder, WorkOrderStatus, DiscountType } from '../../lib/types';
+import type { AppSettings, LaborLine, PartLine, PartUnit, User, WorkOrder, WorkOrderStatus, DiscountType } from '../../lib/types';
 import { downloadBlob } from '../../lib/download';
 import { hasConflict } from '../../lib/schedule';
 import type { TimelineCfg, TimelineEvent } from '../../lib/schedule';
@@ -149,6 +151,12 @@ export function WorkOrderPage() {
     onSuccess: onSaved,
     onError: (e) => toast((e as Error).message, 'error'),
   });
+  const mEditLabor = useMutation({
+    mutationFn: ({ lineId, body }: { lineId: string; body: Record<string, unknown> }) =>
+      api.updateLabor(id, lineId, body),
+    onSuccess: (n) => { onSaved(n); setEditLaborId(null); },
+    onError: (e) => toast((e as Error).message, 'error'),
+  });
   const mDelLabor = useMutation({
     mutationFn: (lineId: string) => api.removeLabor(id, lineId),
     onSuccess: onSaved,
@@ -158,10 +166,20 @@ export function WorkOrderPage() {
     onSuccess: onSaved,
     onError: (e) => toast((e as Error).message, 'error'),
   });
+  const mEditPart = useMutation({
+    mutationFn: ({ lineId, body }: { lineId: string; body: Record<string, unknown> }) =>
+      api.updatePart(id, lineId, body),
+    onSuccess: (n) => { onSaved(n); setEditPartId(null); },
+    onError: (e) => toast((e as Error).message, 'error'),
+  });
   const mDelPart = useMutation({
     mutationFn: (lineId: string) => api.removePart(id, lineId),
     onSuccess: onSaved,
   });
+
+  // Which labor/part line is being edited inline (pencil → row becomes a form).
+  const [editLaborId, setEditLaborId] = useState<string | null>(null);
+  const [editPartId, setEditPartId] = useState<string | null>(null);
 
   // Where "назад" goes — set by whoever navigated here (client/board/calendar).
   const navigate = useNavigate();
@@ -326,19 +344,33 @@ export function WorkOrderPage() {
               {(wo.labor_lines ?? []).length === 0 && (
                 <div className="smeta-empty">Нет работ. {closed ? '' : 'Добавьте операцию ниже или из шаблона.'}</div>
               )}
-              {(wo.labor_lines ?? []).map((l) => (
-                <div key={l.id} className="smeta-row labor-grid">
-                  <span className="truncate">{l.name}</span>
-                  <span className="ta-r mono tnum muted">{l.hours ?? '—'}</span>
-                  <span className="ta-r mono tnum muted">{money(l.rate_snapshot)}</span>
-                  <span className="ta-r mono tnum">{l.price_override != null ? <span className="ovr">{money(l.price_override)}</span> : <span className="faint">—</span>}</span>
-                  <span className="ta-r mono tnum fw-500">{money(laborTotal(l))}</span>
-                  {!closed ? (
-                    <button className="btn btn-ghost btn-icon btn-sm del" onClick={() => mDelLabor.mutate(l.id)} aria-label="Удалить"><Trash2 size={14} /></button>
-                  ) : <span />}
-                </div>
-              ))}
-              {!closed && <AddLaborRow defaultRate={rate} onAdd={(b) => mAddLabor.mutate(b)} busy={mAddLabor.isPending} />}
+              {(wo.labor_lines ?? []).map((l) =>
+                !closed && editLaborId === l.id ? (
+                  <LaborLineForm
+                    key={l.id}
+                    defaultRate={rate}
+                    initial={l}
+                    busy={mEditLabor.isPending}
+                    onSubmit={(b) => mEditLabor.mutate({ lineId: l.id, body: b })}
+                    onCancel={() => setEditLaborId(null)}
+                  />
+                ) : (
+                  <div key={l.id} className="smeta-row labor-grid">
+                    <span className="truncate">{l.name}</span>
+                    <span className="ta-r mono tnum muted">{l.hours ?? '—'}</span>
+                    <span className="ta-r mono tnum muted">{money(l.rate_snapshot)}</span>
+                    <span className="ta-r mono tnum">{l.price_override != null ? <span className="ovr">{money(l.price_override)}</span> : <span className="faint">—</span>}</span>
+                    <span className="ta-r mono tnum fw-500">{money(laborTotal(l))}</span>
+                    {!closed ? (
+                      <span className="row-actions">
+                        <button className="btn btn-ghost btn-icon btn-sm edit" onClick={() => { setEditLaborId(l.id); setEditPartId(null); }} aria-label="Изменить"><Pencil size={14} /></button>
+                        <button className="btn btn-ghost btn-icon btn-sm del" onClick={() => mDelLabor.mutate(l.id)} aria-label="Удалить"><Trash2 size={14} /></button>
+                      </span>
+                    ) : <span />}
+                  </div>
+                ),
+              )}
+              {!closed && <LaborLineForm defaultRate={rate} onSubmit={(b) => mAddLabor.mutate(b)} busy={mAddLabor.isPending} />}
             </div>
           </section>
 
@@ -358,18 +390,31 @@ export function WorkOrderPage() {
               {(wo.part_lines ?? []).length === 0 && (
                 <div className="smeta-empty">Нет запчастей. {closed ? '' : 'Добавьте деталь ниже.'}</div>
               )}
-              {(wo.part_lines ?? []).map((p) => (
-                <div key={p.id} className="smeta-row part-grid">
-                  <span className="truncate">{p.name}{p.catalog_number ? <span className="mono faint"> · {p.catalog_number}</span> : ''}</span>
-                  <span className="ta-r mono tnum muted">{p.qty}</span>
-                  <span className="ta-r mono tnum muted">{money(p.unit_price)}</span>
-                  <span className="ta-r mono tnum fw-500">{money(partTotal(p))}</span>
-                  {!closed ? (
-                    <button className="btn btn-ghost btn-icon btn-sm del" onClick={() => mDelPart.mutate(p.id)} aria-label="Удалить"><Trash2 size={14} /></button>
-                  ) : <span />}
-                </div>
-              ))}
-              {!closed && <AddPartRow onAdd={(b) => mAddPart.mutate(b)} busy={mAddPart.isPending} />}
+              {(wo.part_lines ?? []).map((p) =>
+                !closed && editPartId === p.id ? (
+                  <PartLineForm
+                    key={p.id}
+                    initial={p}
+                    busy={mEditPart.isPending}
+                    onSubmit={(b) => mEditPart.mutate({ lineId: p.id, body: b })}
+                    onCancel={() => setEditPartId(null)}
+                  />
+                ) : (
+                  <div key={p.id} className="smeta-row part-grid">
+                    <span className="truncate">{p.name}{p.catalog_number ? <span className="mono faint"> · {p.catalog_number}</span> : ''}</span>
+                    <span className="ta-r mono tnum muted">{fmtQty(p.qty)} {unitLabel(p.unit)}</span>
+                    <span className="ta-r mono tnum muted">{money(p.unit_price)}</span>
+                    <span className="ta-r mono tnum fw-500">{money(partTotal(p))}</span>
+                    {!closed ? (
+                      <span className="row-actions">
+                        <button className="btn btn-ghost btn-icon btn-sm edit" onClick={() => { setEditPartId(p.id); setEditLaborId(null); }} aria-label="Изменить"><Pencil size={14} /></button>
+                        <button className="btn btn-ghost btn-icon btn-sm del" onClick={() => mDelPart.mutate(p.id)} aria-label="Удалить"><Trash2 size={14} /></button>
+                      </span>
+                    ) : <span />}
+                  </div>
+                ),
+              )}
+              {!closed && <PartLineForm onSubmit={(b) => mAddPart.mutate(b)} busy={mAddPart.isPending} />}
             </div>
           </section>
 
@@ -478,67 +523,125 @@ export function WorkOrderPage() {
   );
 }
 
-function AddLaborRow({ defaultRate, onAdd, busy }: { defaultRate: number; onAdd: (b: Record<string, unknown>) => void; busy: boolean }) {
-  const [name, setName] = useState('');
-  const [hours, setHours] = useState('');
-  const [rate, setRate] = useState(String(defaultRate));
-  const [override, setOverride] = useState('');
-  useEffect(() => setRate(String(defaultRate)), [defaultRate]);
+/** Display a part qty without trailing zeros (1.500 → "1.5", 2.000 → "2"). */
+function fmtQty(n: number): string {
+  return String(n);
+}
+function unitLabel(u: PartUnit): string {
+  return u === 'l' ? 'л' : 'шт';
+}
+
+/** Add- and edit-form for a labor line (same grid). Edit mode = `onCancel` given. */
+function LaborLineForm({
+  defaultRate,
+  initial,
+  onSubmit,
+  onCancel,
+  busy,
+}: {
+  defaultRate: number;
+  initial?: LaborLine;
+  onSubmit: (b: Record<string, unknown>) => void;
+  onCancel?: () => void;
+  busy: boolean;
+}) {
+  const editMode = !!onCancel;
+  const [name, setName] = useState(initial?.name ?? '');
+  const [hours, setHours] = useState(initial?.hours != null ? String(initial.hours) : '');
+  const [rate, setRate] = useState(String(initial?.rate_snapshot ?? defaultRate));
+  const [override, setOverride] = useState(initial?.price_override != null ? String(initial.price_override) : '');
+  useEffect(() => { if (!editMode) setRate(String(defaultRate)); }, [defaultRate, editMode]);
 
   const submit = () => {
     if (!name.trim()) return;
-    onAdd({
+    onSubmit({
       name: name.trim(),
-      hours: hours ? Number(hours) : undefined,
+      // edit: empty clears the field (null); add: empty omits it (undefined → defaults)
+      hours: hours ? Number(hours) : editMode ? null : undefined,
       rate_snapshot: rate ? Number(rate) : undefined,
-      price_override: override ? Number(override) : undefined,
+      price_override: override ? Number(override) : editMode ? null : undefined,
     });
-    setName(''); setHours(''); setOverride(''); setRate(String(defaultRate));
+    if (!editMode) { setName(''); setHours(''); setOverride(''); setRate(String(defaultRate)); }
   };
 
   return (
     <div className="smeta-add labor-grid">
-      <input className="cell-input" value={name} placeholder="Напр. Замена масла" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+      <input className="cell-input" value={name} placeholder="Напр. Замена масла" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} autoFocus={editMode} />
       <input className="cell-input ta-r tnum" value={hours} placeholder="ч" onChange={(e) => setHours(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" />
       <input className="cell-input ta-r tnum" value={rate} placeholder="ставка" onChange={(e) => setRate(e.target.value.replace(/\D/g, ''))} inputMode="numeric" />
       <input className="cell-input ta-r tnum" value={override} placeholder="фикс." onChange={(e) => setOverride(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" />
       <span />
-      <button className="btn btn-default btn-icon btn-sm" onClick={submit} disabled={!name.trim() || busy} aria-label="Добавить работу">
-        {busy ? <Spinner /> : <Plus size={15} />}
-      </button>
+      <span className="row-actions">
+        {onCancel && (
+          <button className="btn btn-ghost btn-icon btn-sm" onClick={onCancel} disabled={busy} aria-label="Отмена"><X size={15} /></button>
+        )}
+        <button className="btn btn-default btn-icon btn-sm" onClick={submit} disabled={!name.trim() || busy} aria-label={editMode ? 'Сохранить' : 'Добавить работу'}>
+          {busy ? <Spinner /> : editMode ? <Check size={15} /> : <Plus size={15} />}
+        </button>
+      </span>
     </div>
   );
 }
 
-function AddPartRow({ onAdd, busy }: { onAdd: (b: Record<string, unknown>) => void; busy: boolean }) {
-  const [name, setName] = useState('');
-  const [cat, setCat] = useState('');
-  const [qty, setQty] = useState('1');
-  const [price, setPrice] = useState('');
+/** Add- and edit-form for a part line, with шт/л unit + fractional liters. */
+function PartLineForm({
+  initial,
+  onSubmit,
+  onCancel,
+  busy,
+}: {
+  initial?: PartLine;
+  onSubmit: (b: Record<string, unknown>) => void;
+  onCancel?: () => void;
+  busy: boolean;
+}) {
+  const editMode = !!onCancel;
+  const [name, setName] = useState(initial?.name ?? '');
+  const [cat, setCat] = useState(initial?.catalog_number ?? '');
+  const [unit, setUnit] = useState<PartUnit>(initial?.unit ?? 'pcs');
+  const [qty, setQty] = useState(initial ? fmtQty(initial.qty) : '1');
+  const [price, setPrice] = useState(initial?.unit_price != null ? String(initial.unit_price) : '');
+
+  const onQty = (v: string, u: PartUnit) =>
+    u === 'l'
+      ? v.replace(',', '.').replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1')
+      : v.replace(/\D/g, '');
 
   const submit = () => {
     if (!name.trim() || !price) return;
-    onAdd({
+    onSubmit({
       name: name.trim(),
-      catalog_number: cat.trim() || undefined,
+      catalog_number: cat.trim() || (editMode ? null : undefined),
       qty: qty ? Number(qty) : 1,
+      unit,
       unit_price: Number(price),
     });
-    setName(''); setCat(''); setQty('1'); setPrice('');
+    if (!editMode) { setName(''); setCat(''); setUnit('pcs'); setQty('1'); setPrice(''); }
   };
 
   return (
     <div className="smeta-add part-grid">
       <div className="part-name-cell">
-        <input className="cell-input grow" value={name} placeholder="Напр. Масляный фильтр" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+        <input className="cell-input grow" value={name} placeholder="Напр. Масляный фильтр" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} autoFocus={editMode} />
         <input className="cell-input art" value={cat} placeholder="Артикул" onChange={(e) => setCat(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
       </div>
-      <input className="cell-input ta-r tnum" value={qty} placeholder="кол-во" onChange={(e) => setQty(e.target.value.replace(/\D/g, ''))} inputMode="numeric" />
+      <div className="qty-cell">
+        <input className="cell-input ta-r tnum" value={qty} placeholder="кол-во" onChange={(e) => setQty(onQty(e.target.value, unit))} inputMode="decimal" />
+        <select className="unit-select" value={unit} onChange={(e) => { const u = e.target.value as PartUnit; setUnit(u); setQty((q) => onQty(q, u)); }} aria-label="Единица">
+          <option value="pcs">шт</option>
+          <option value="l">л</option>
+        </select>
+      </div>
       <input className="cell-input ta-r tnum" value={price} placeholder="цена" onChange={(e) => setPrice(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" />
       <span />
-      <button className="btn btn-default btn-icon btn-sm" onClick={submit} disabled={!name.trim() || !price || busy} aria-label="Добавить запчасть">
-        {busy ? <Spinner /> : <Plus size={15} />}
-      </button>
+      <span className="row-actions">
+        {onCancel && (
+          <button className="btn btn-ghost btn-icon btn-sm" onClick={onCancel} disabled={busy} aria-label="Отмена"><X size={15} /></button>
+        )}
+        <button className="btn btn-default btn-icon btn-sm" onClick={submit} disabled={!name.trim() || !price || busy} aria-label={editMode ? 'Сохранить' : 'Добавить запчасть'}>
+          {busy ? <Spinner /> : editMode ? <Check size={15} /> : <Plus size={15} />}
+        </button>
+      </span>
     </div>
   );
 }
