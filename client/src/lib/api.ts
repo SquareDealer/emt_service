@@ -30,9 +30,12 @@ export function setToken(t: string | null) {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  /** Parsed response body, when JSON — lets callers read extra fields (e.g. clientId). */
+  body: unknown;
+  constructor(status: number, message: string, body?: unknown) {
     super(message);
     this.status = status;
+    this.body = body;
   }
 }
 
@@ -65,7 +68,7 @@ async function request<T>(path: string, opts: Opts = {}): Promise<T> {
     const msg =
       (data && (data.message || data.error)) ||
       `Ошибка ${res.status}`;
-    throw new ApiError(res.status, Array.isArray(msg) ? msg.join(', ') : String(msg));
+    throw new ApiError(res.status, Array.isArray(msg) ? msg.join(', ') : String(msg), data);
   }
   return data as T;
 }
@@ -93,7 +96,7 @@ async function requestBlob(path: string): Promise<Blob> {
     const text = await res.text().catch(() => '');
     const data = text ? safeJson(text) : null;
     const msg = (data && (data.message || data.error)) || `Ошибка ${res.status}`;
-    throw new ApiError(res.status, Array.isArray(msg) ? msg.join(', ') : String(msg));
+    throw new ApiError(res.status, Array.isArray(msg) ? msg.join(', ') : String(msg), data);
   }
   return res.blob();
 }
@@ -123,6 +126,8 @@ export const api = {
   createClient: (body: Partial<Client>) => request<Client>('/clients', { body }),
   updateClient: (id: string, body: Partial<Client>) =>
     request<Client>(`/clients/${id}`, { method: 'PATCH', body }),
+  deleteClient: (id: string) =>
+    request<void>(`/clients/${id}`, { method: 'DELETE' }),
   clientVehicles: (id: string) => request<Vehicle[]>(`/clients/${id}/vehicles`),
   importClients: (file: File) => {
     const form = new FormData();
@@ -162,10 +167,14 @@ export const api = {
     request<void>(`/work-orders/${id}`, { method: 'DELETE' }),
   addLabor: (id: string, body: Record<string, unknown>) =>
     request<WorkOrder>(`/work-orders/${id}/labor`, { body }),
+  updateLabor: (id: string, lineId: string, body: Record<string, unknown>) =>
+    request<WorkOrder>(`/work-orders/${id}/labor/${lineId}`, { method: 'PATCH', body }),
   removeLabor: (id: string, lineId: string) =>
     request<WorkOrder>(`/work-orders/${id}/labor/${lineId}`, { method: 'DELETE' }),
   addPart: (id: string, body: Record<string, unknown>) =>
     request<WorkOrder>(`/work-orders/${id}/parts`, { body }),
+  updatePart: (id: string, lineId: string, body: Record<string, unknown>) =>
+    request<WorkOrder>(`/work-orders/${id}/parts/${lineId}`, { method: 'PATCH', body }),
   removePart: (id: string, lineId: string) =>
     request<WorkOrder>(`/work-orders/${id}/parts/${lineId}`, { method: 'DELETE' }),
   setPaid: (id: string, paid_amount: number) =>
