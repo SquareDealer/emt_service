@@ -73,6 +73,8 @@ export interface WorkOrder {
   status: WorkOrderStatus;
   title: string | null;
   notes: string | null;
+  complaint: string | null;
+  recommendation: string | null;
   scheduled_at: string | null;
   scheduled_duration_min: number | null;
   discount_type: DiscountType | null;

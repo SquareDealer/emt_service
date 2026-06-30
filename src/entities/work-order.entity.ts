@@ -56,6 +56,14 @@ export class WorkOrder {
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
+  /** Customer's reason for visit / complaint — prints in the order PDF. */
+  @Column({ type: 'text', nullable: true })
+  complaint: string | null;
+
+  /** Recommendation to the client — prints in the order PDF. */
+  @Column({ type: 'text', nullable: true })
+  recommendation: string | null;
+
   @Column({ name: 'scheduled_at', type: 'timestamptz', nullable: true })
   scheduled_at: Date | null;
 

@@ -59,6 +59,14 @@ export class UpdateWorkOrderDto {
   notes?: string;
 
   @IsOptional()
+  @IsString()
+  complaint?: string;
+
+  @IsOptional()
+  @IsString()
+  recommendation?: string;
+
+  @IsOptional()
   @IsDateString()
   scheduled_at?: string;
 

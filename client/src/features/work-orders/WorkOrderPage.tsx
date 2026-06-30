@@ -22,6 +22,8 @@ import {
   Clock,
   Save,
   StickyNote,
+  MessageSquareWarning,
+  ClipboardList,
   FileDown,
   UserCog,
 } from 'lucide-react';
@@ -56,6 +58,8 @@ function isEmptyWo(w: WorkOrder | null): boolean {
     (w.part_lines?.length ?? 0) === 0 &&
     !w.title?.trim() &&
     !w.notes?.trim() &&
+    !w.complaint?.trim() &&
+    !w.recommendation?.trim() &&
     !w.scheduled_at &&
     !w.discount_type
   );
@@ -415,6 +419,44 @@ export function WorkOrderPage() {
                 ),
               )}
               {!closed && <PartLineForm onSubmit={(b) => mAddPart.mutate(b)} busy={mAddPart.isPending} />}
+            </div>
+          </section>
+
+          {/* complaint — причина обращения (prints in order PDF) */}
+          <section className="panel">
+            <div className="panel-head">
+              <h2 className="panel-title"><MessageSquareWarning size={16} className="muted" style={{ display: 'inline', verticalAlign: '-3px', marginRight: 6 }} />Причина обращения</h2>
+            </div>
+            <div style={{ padding: 'var(--sp-3) var(--sp-4)' }}>
+              <textarea
+                className="textarea"
+                defaultValue={wo.complaint ?? ''}
+                key={wo.id + (wo.complaint ?? '')}
+                placeholder="Жалоба клиента, с чем приехал…"
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v !== (wo.complaint ?? '')) mUpdate.mutate({ complaint: v || null });
+                }}
+              />
+            </div>
+          </section>
+
+          {/* recommendation — рекомендации клиенту (prints in order PDF) */}
+          <section className="panel">
+            <div className="panel-head">
+              <h2 className="panel-title"><ClipboardList size={16} className="muted" style={{ display: 'inline', verticalAlign: '-3px', marginRight: 6 }} />Рекомендации клиенту</h2>
+            </div>
+            <div style={{ padding: 'var(--sp-3) var(--sp-4)' }}>
+              <textarea
+                className="textarea"
+                defaultValue={wo.recommendation ?? ''}
+                key={wo.id + (wo.recommendation ?? '')}
+                placeholder="Что советуем сделать в следующий раз…"
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v !== (wo.recommendation ?? '')) mUpdate.mutate({ recommendation: v || null });
+                }}
+              />
             </div>
           </section>
 

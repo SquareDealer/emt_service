@@ -318,7 +318,7 @@ export class WorkOrderPdfService {
               this.infoRow('Контакт', contact),
               this.infoRow('Плательщик', contact),
               this.infoRow('Транспортное средство', this.vehicleLine(v)),
-              this.infoRow('Причина обращения', wo.title?.trim() || '-'),
+              this.infoRow('Причина обращения', wo.complaint?.trim() || '-'),
               this.infoRow(
                 'Время начала и конца работ в календаре',
                 wo.scheduled_at ? this.dmy(wo.scheduled_at) : '-',
@@ -370,7 +370,10 @@ export class WorkOrderPdfService {
 
         // --- recommendations note + signatures ---
         {
-          text: [{ text: 'Рекомендации клиенту:\n', bold: true }, '-'],
+          text: [
+            { text: 'Рекомендации клиенту:\n', bold: true },
+            wo.recommendation?.trim() || '-',
+          ],
           margin: [0, 6, 0, 16],
         },
         {
