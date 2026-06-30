@@ -4,7 +4,7 @@
   grid-template-columns: 1fr 1fr;
 }
 
-/* --- left: brand aside with an animated aurora backdrop --- */
+/* --- left: brand aside, calm layered depth (no decorative motion) --- */
 .login-aside {
   position: relative;
   overflow: hidden;
@@ -14,41 +14,17 @@
   justify-content: flex-end;
   padding: var(--sp-8);
   background:
-    radial-gradient(140% 120% at 8% 0%, var(--primary-wash), transparent 52%),
+    radial-gradient(130% 110% at 6% 4%, var(--primary-wash), transparent 52%),
     var(--surface-2);
 }
-/* two slow-drifting colour blobs for depth */
-.login-aside::before,
+/* a single soft brass glow, bottom-right — static, low presence */
 .login-aside::after {
   content: '';
   position: absolute;
-  border-radius: 50%;
+  inset: 0;
   pointer-events: none;
-  will-change: transform;
-}
-.login-aside::before {
-  width: 460px; height: 460px;
-  left: -120px; top: -90px;
-  background: radial-gradient(circle, var(--primary), transparent 66%);
-  opacity: 0.22;
-  filter: blur(46px);
-  animation: login-drift-a 17s ease-in-out infinite alternate;
-}
-.login-aside::after {
-  width: 420px; height: 420px;
-  right: -110px; bottom: 60px;
-  background: radial-gradient(circle, var(--accent), transparent 62%);
-  opacity: 0.20;
-  filter: blur(56px);
-  animation: login-drift-b 21s ease-in-out infinite alternate;
-}
-@keyframes login-drift-a {
-  from { transform: translate(0, 0) scale(1); }
-  to   { transform: translate(48px, 34px) scale(1.08); }
-}
-@keyframes login-drift-b {
-  from { transform: translate(0, 0) scale(1); }
-  to   { transform: translate(-36px, -44px) scale(1.1); }
+  background: radial-gradient(64% 48% at 88% 92%, var(--accent), transparent 60%);
+  opacity: 0.1;
 }
 
 .login-aside-inner {
@@ -56,35 +32,39 @@
   z-index: 1;
   display: flex;
   flex-direction: column;
+  align-items: flex-start; /* keep children at intrinsic width — no logo stretch */
   gap: var(--sp-5);
 }
 .login-logo {
-  height: 104px;
+  height: 120px;
   width: auto;
+  max-width: 100%;
   display: block;
-  filter: drop-shadow(0 10px 30px rgb(0 0 0 / 0.18));
+  filter: drop-shadow(0 8px 24px rgb(0 0 0 / 0.16));
 }
 .login-logo-dark { display: none; }
 [data-theme='dark'] .login-logo-light { display: none; }
 [data-theme='dark'] .login-logo-dark { display: block; }
 
-.login-eyebrow {
-  display: block;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--accent-ink, var(--accent));
-  margin-bottom: var(--sp-2);
+.login-aside-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
 }
-.login-aside-text p {
+.login-lead {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.login-sub {
   color: var(--muted);
-  max-width: 34ch;
+  max-width: 36ch;
   font-size: var(--text-base);
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
-/* --- right: form panel, glassy card --- */
+/* --- right: form panel --- */
 .login-panel { display: grid; place-items: center; padding: var(--sp-5); }
 .login-form {
   display: flex;
@@ -96,18 +76,10 @@
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-lg);
-  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
-}
-.login-form:focus-within {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--ring), var(--shadow-lg);
 }
 .login-form h2 { font-size: var(--text-xl); letter-spacing: -0.01em; }
 
 @media (max-width: 760px) {
   .login-wrap { grid-template-columns: 1fr; }
   .login-aside { display: none; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .login-aside::before, .login-aside::after { animation: none; }
 }

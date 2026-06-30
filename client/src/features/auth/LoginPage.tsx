@@ -31,8 +31,8 @@ export function LoginPage() {
           <img className="login-logo login-logo-light" src="/emt-logo-light-theme.png" alt="EMT Service" />
           <img className="login-logo login-logo-dark" src="/emt-logo-dark-theme.png" alt="EMT Service" />
           <div className="login-aside-text">
-            <span className="login-eyebrow">MINI Cooper · сервис</span>
-            <p>Клиенты, авто, заказ-наряды и сметы — в одном тихом инструменте.</p>
+            <p className="login-lead">Сервис MINI Cooper</p>
+            <p className="login-sub">Клиенты, авто, заказ-наряды и сметы — в одном тихом инструменте.</p>
           </div>
         </div>
       </div>
