@@ -27,16 +27,18 @@ export function LoginPage() {
   return (
     <div className="login-wrap">
       <div className="login-aside" aria-hidden>
-        <div className="login-mark">Т</div>
-        <div className="login-aside-text">
-          <h1>Татарин CRM</h1>
-          <p>Сервис MINI Cooper. Клиенты, авто, заказ-наряды и сметы — в одном тихом инструменте.</p>
+        <div className="login-aside-inner">
+          <img className="login-logo login-logo-light" src="/emt-logo-light-theme.png" alt="EMT Service" />
+          <img className="login-logo login-logo-dark" src="/emt-logo-dark-theme.png" alt="EMT Service" />
+          <div className="login-aside-text">
+            <span className="login-eyebrow">MINI Cooper · сервис</span>
+            <p>Клиенты, авто, заказ-наряды и сметы — в одном тихом инструменте.</p>
+          </div>
         </div>
       </div>
 
       <div className="login-panel">
         <form className="login-form" onSubmit={submit}>
-          <div className="login-mark login-mark-sm">Т</div>
           <h2>Вход в систему</h2>
           <p className="muted text-sm">Введите логин и пароль владельца</p>
 
