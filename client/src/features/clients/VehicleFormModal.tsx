@@ -4,6 +4,13 @@ import { Check } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import { Modal, Spinner } from '../../components/ui';
+import {
+  VehicleFields,
+  emptyVehicleFields,
+  vehicleFieldsBody,
+  vehicleFieldsValid,
+} from '../../components/VehicleFields';
+import type { VehicleFieldsValue } from '../../components/VehicleFields';
 import type { Vehicle } from '../../lib/types';
 
 export function VehicleFormModal({
@@ -21,37 +28,31 @@ export function VehicleFormModal({
   const toast = useToast();
   const editing = !!initial;
 
-  const [model, setModel] = useState('');
-  const [plate, setPlate] = useState('');
-  const [vin, setVin] = useState('');
-  const [year, setYear] = useState('');
-  const [mileage, setMileage] = useState('');
+  const [fields, setFields] = useState<VehicleFieldsValue>(emptyVehicleFields);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setModel(initial?.model ?? '');
-      setPlate(initial?.plate ?? '');
-      setVin(initial?.vin ?? '');
-      setYear(initial?.year != null ? String(initial.year) : '');
-      setMileage(initial?.mileage != null ? String(initial.mileage) : '');
+      setFields({
+        make: initial?.make ?? '',
+        model: initial?.model ?? '',
+        generationId: initial?.generation_id ?? '',
+        plate: initial?.plate ?? '',
+        vin: initial?.vin ?? '',
+        year: initial?.year != null ? String(initial.year) : '',
+        mileage: initial?.mileage != null ? String(initial.mileage) : '',
+      });
     }
   }, [open, initial]);
 
-  const valid = model.trim() || plate.trim() || vin.trim();
+  const patch = (p: Partial<VehicleFieldsValue>) => setFields((f) => ({ ...f, ...p }));
+  const valid = vehicleFieldsValid(fields);
 
   const submit = async () => {
     if (!valid || busy) return;
     setBusy(true);
     try {
-      const body = {
-        client_id: clientId,
-        model: model.trim() || null,
-        plate: plate.trim() || null,
-        vin: vin.trim() || null,
-        year: year ? Number(year) : null,
-        mileage: mileage ? Number(mileage) : null,
-      } as Partial<Vehicle>;
+      const body = { client_id: clientId, ...vehicleFieldsBody(fields) } as Partial<Vehicle>;
       if (editing) await api.updateVehicle(initial!.id, body);
       else await api.createVehicle(body);
       qc.invalidateQueries();
@@ -79,32 +80,7 @@ export function VehicleFormModal({
         </>
       }
     >
-      <div className="col gap-3">
-        <div className="grid-2">
-          <div className="field">
-            <label className="label">Модель / поколение</label>
-            <input className="input" value={model} onChange={(e) => setModel(e.target.value)} placeholder="R56, F56…" autoFocus />
-          </div>
-          <div className="field">
-            <label className="label">Госномер</label>
-            <input className="input mono" value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="А123ВС777" />
-          </div>
-        </div>
-        <div className="field">
-          <label className="label">VIN</label>
-          <input className="input mono" value={vin} onChange={(e) => setVin(e.target.value)} placeholder="WMW…" />
-        </div>
-        <div className="grid-2">
-          <div className="field">
-            <label className="label">Год</label>
-            <input className="input tnum" value={year} onChange={(e) => setYear(e.target.value.replace(/\D/g, ''))} placeholder="2014" inputMode="numeric" />
-          </div>
-          <div className="field">
-            <label className="label">Пробег, км</label>
-            <input className="input tnum" value={mileage} onChange={(e) => setMileage(e.target.value.replace(/\D/g, ''))} placeholder="120000" inputMode="numeric" />
-          </div>
-        </div>
-      </div>
+      <VehicleFields value={fields} onChange={patch} autoFocus />
     </Modal>
   );
 }

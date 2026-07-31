@@ -33,8 +33,14 @@ export class TaskTemplatesService {
     return this.repo.save(t);
   }
 
-  async remove(id: string): Promise<void> {
-    await this.repo.delete(id);
+  /**
+   * Retire rather than delete. `labor_lines.template_id` points here, historic
+   * orders must keep that provenance, and the price list hangs off it too.
+   */
+  async deactivate(id: string): Promise<TaskTemplate> {
+    const t = await this.findOne(id);
+    t.active = false;
+    return this.repo.save(t);
   }
 
   count(): Promise<number> {

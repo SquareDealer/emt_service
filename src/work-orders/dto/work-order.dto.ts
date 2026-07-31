@@ -23,6 +23,8 @@ const STATUSES: WorkOrderStatus[] = [
   'closed',
 ];
 
+const DISCOUNTS: DiscountType[] = ['percent', 'fixed'];
+
 export class CreateWorkOrderDto {
   @IsUUID()
   vehicle_id: string;
@@ -128,6 +130,25 @@ export class CreateLaborLineDto {
   @IsNumber()
   @Min(0)
   price_override?: number;
+
+  /** Estimate block this line joins. Client-generated uuid; null = ungrouped. */
+  @IsOptional()
+  @IsUUID()
+  group_key?: string | null;
+
+  @IsOptional()
+  @IsString()
+  group_name?: string | null;
+
+  /** Per-line discount. Send null to clear (@IsOptional() lets null through). */
+  @IsOptional()
+  @IsIn(DISCOUNTS)
+  discount_type?: DiscountType | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  discount_value?: number | null;
 }
 
 export class CreatePartLineDto {
@@ -152,6 +173,36 @@ export class CreatePartLineDto {
   @IsNumber()
   @Min(0)
   unit_price: number;
+
+  /** Brand, kept apart from the name so the documents can show it separately. */
+  @IsOptional()
+  @IsString()
+  manufacturer?: string | null;
+
+  /** Catalog entry this line was picked from. */
+  @IsOptional()
+  @IsUUID()
+  part_template_id?: string | null;
+
+  /** Estimate block this line joins. Client-generated uuid; null = ungrouped. */
+  @IsOptional()
+  @IsUUID()
+  group_key?: string | null;
+
+  @IsOptional()
+  @IsString()
+  group_name?: string | null;
+
+
+  /** Per-line discount. Send null to clear (@IsOptional() lets null through). */
+  @IsOptional()
+  @IsIn(DISCOUNTS)
+  discount_type?: DiscountType | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  discount_value?: number | null;
 }
 
 export class UpdateLaborLineDto {
@@ -174,6 +225,16 @@ export class UpdateLaborLineDto {
   @IsNumber()
   @Min(0)
   price_override?: number | null;
+
+  /** Per-line discount. Send null to clear (@IsOptional() lets null through). */
+  @IsOptional()
+  @IsIn(DISCOUNTS)
+  discount_type?: DiscountType | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  discount_value?: number | null;
 }
 
 export class UpdatePartLineDto {
@@ -199,4 +260,18 @@ export class UpdatePartLineDto {
   @IsNumber()
   @Min(0)
   unit_price?: number;
+
+  @IsOptional()
+  @IsString()
+  manufacturer?: string | null;
+
+  /** Per-line discount. Send null to clear (@IsOptional() lets null through). */
+  @IsOptional()
+  @IsIn(DISCOUNTS)
+  discount_type?: DiscountType | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  discount_value?: number | null;
 }

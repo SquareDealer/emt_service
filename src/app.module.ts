@@ -8,8 +8,11 @@ import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { UsersModule } from './users/users.module';
 import { ClientsModule } from './clients/clients.module';
 import { VehiclesModule } from './vehicles/vehicles.module';
+import { VehicleGenerationsModule } from './vehicle-generations/vehicle-generations.module';
 import { WorkOrdersModule } from './work-orders/work-orders.module';
+import { CalendarBlocksModule } from './calendar-blocks/calendar-blocks.module';
 import { TaskTemplatesModule } from './task-templates/task-templates.module';
+import { PartTemplatesModule } from './part-templates/part-templates.module';
 import { SettingsModule } from './settings/settings.module';
 import { SearchModule } from './search/search.module';
 import { HealthModule } from './health/health.module';
@@ -31,8 +34,11 @@ import { SeedModule } from './seed/seed.module';
     UsersModule,
     ClientsModule,
     VehiclesModule,
+    VehicleGenerationsModule,
     WorkOrdersModule,
+    CalendarBlocksModule,
     TaskTemplatesModule,
+    PartTemplatesModule,
     SettingsModule,
     SearchModule,
     HealthModule,

@@ -6,6 +6,7 @@ import { ClientsPage } from './features/clients/ClientsPage';
 import { ClientCardPage } from './features/clients/ClientCardPage';
 import { WorkOrderPage } from './features/work-orders/WorkOrderPage';
 import { BoardPage } from './features/board/BoardPage';
+import { PriceListPage } from './features/price-list/PriceListPage';
 import { CalendarPage } from './features/calendar/CalendarPage';
 import { ArchivePage } from './features/archive/ArchivePage';
 import { ImportPage } from './features/import/ImportPage';
@@ -41,7 +42,8 @@ export function App() {
         <Route path="/clients/:id" element={<ClientCardPage />} />
         <Route path="/work-orders/:id" element={<WorkOrderPage />} />
         <Route path="/board" element={<BoardPage />} />
-        <Route path="/calendar" element={<CalendarPage />} />
+        <Route path="/price-list" element={<PriceListPage />} />
+          <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/archive" element={<ArchivePage />} />
         <Route path="/import" element={<ImportPage />} />
         <Route path="/settings" element={<SettingsPage />} />

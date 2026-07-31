@@ -36,12 +36,43 @@ export interface Vehicle {
   id: string;
   client_id: string;
   vin: string | null;
+  /** «MINI», «BMW»… Free text — the generations catalog is a helper, not a constraint. */
+  make: string | null;
   model: string | null;
+  /** Snapshot of the catalog code («R56»), kept even if the catalog row is retired. */
+  generation_code: string | null;
+  generation_id: string | null;
   plate: string | null;
   year: number | null;
   mileage: number | null;
   notes: string | null;
   created_at: string;
+}
+
+/**
+ * Reserved time that is not a work order — a booked lift, a supplier visit, a
+ * day off. `user_id === null` means the whole shop is busy.
+ */
+export interface CalendarBlock {
+  id: string;
+  title: string | null;
+  starts_at: string;
+  duration_min: number;
+  user_id: string | null;
+  user?: { id: string; name: string } | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface VehicleGeneration {
+  id: string;
+  make: string;
+  model: string;
+  code: string | null;
+  years: string | null;
+  sort: number;
+  active: boolean;
 }
 
 export interface LaborLine {
@@ -52,6 +83,14 @@ export interface LaborLine {
   hours: number | null;
   rate_snapshot: number;
   price_override: number | null;
+  /** Per-line discount — applied before the order-level one, the two stack. */
+  discount_type: DiscountType | null;
+  discount_value: number | null;
+  /** Estimate block this line belongs to; null = ungrouped. */
+  group_key: string | null;
+  group_name: string | null;
+  group_sort: number;
+  sort: number;
 }
 
 export type PartUnit = 'pcs' | 'l';
@@ -61,9 +100,19 @@ export interface PartLine {
   work_order_id: string;
   name: string;
   catalog_number: string | null;
+  /** Brand, separate from the name — printed instead of the article on the order. */
+  manufacturer: string | null;
   qty: number;
   unit: PartUnit;
   unit_price: number;
+  /** Catalog entry this line was picked from. */
+  part_template_id: string | null;
+  discount_type: DiscountType | null;
+  discount_value: number | null;
+  group_key: string | null;
+  group_name: string | null;
+  group_sort: number;
+  sort: number;
 }
 
 export interface WorkOrder {
@@ -122,6 +171,64 @@ export interface TaskTemplate {
   active: boolean;
 }
 
+export interface PartTemplate {
+  id: string;
+  name: string;
+  manufacturer: string | null;
+  catalog_number: string | null;
+  unit: PartUnit;
+  default_price: number | null;
+  active: boolean;
+}
+
+/** Where a price-list figure came from — surfaced so a fallback is never silent. */
+export type PriceSource = 'generation' | 'template' | 'rate';
+
+export interface PriceListRow {
+  template: TaskTemplate;
+  base: { hours: number | null; price: number | null };
+  /** null = inherits the base price for this generation. */
+  override: { hours: number | null; price: number | null } | null;
+  effective: { hours: number | null; price: number | null; source: PriceSource };
+  /** How many parts this work pulls in for the selected generation. */
+  parts_count: number;
+}
+
+/** A part a work pulls in — the link that makes «работа + её запчасти». */
+export interface TaskTemplatePart {
+  id: string;
+  task_template_id: string;
+  part_template_id: string;
+  part_template?: PartTemplate;
+  /** null = for every generation; a generation row supersedes its universal twin. */
+  generation_id: string | null;
+  qty: number | null;
+  is_default: boolean;
+  /** Role in the work («фильтр масляный») — what lets a generation part replace it. */
+  slot: string | null;
+}
+
+export interface TemplatePartCandidate {
+  part_template_id: string;
+  name: string;
+  manufacturer: string | null;
+  catalog_number: string | null;
+  unit: PartUnit;
+  qty: number;
+  unit_price: number | null;
+  is_default: boolean;
+  /** Chosen because it names this car's generation. */
+  generation_specific: boolean;
+}
+
+export interface TemplatePreview {
+  template_id: string;
+  group_name: string;
+  labor: { name: string; hours: number | null; rate_snapshot: number; price_override: number | null };
+  price_source: PriceSource;
+  parts: TemplatePartCandidate[];
+}
+
 export interface SearchHit {
   id: string;
   type: 'client' | 'vehicle';
@@ -130,7 +237,9 @@ export interface SearchHit {
   source?: ClientSource;
   vin?: string | null;
   plate?: string | null;
+  make?: string | null;
   model?: string | null;
+  generation_code?: string | null;
   client?: { id: string; full_name: string; phone: string } | null;
 }
 

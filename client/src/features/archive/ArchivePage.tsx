@@ -12,7 +12,7 @@ import {
 import { api } from '../../lib/api';
 import { downloadBlob } from '../../lib/download';
 import { useToast } from '../../lib/toast';
-import { money, dateShort } from '../../lib/format';
+import { money, dateShort, vehicleLabel } from '../../lib/format';
 import { EmptyState, ListSkeleton, Spinner } from '../../components/ui';
 import type { ArchiveSort, WorkOrder } from '../../lib/types';
 import './archive.css';
@@ -146,7 +146,7 @@ export function ArchivePage() {
                   <span className="text-xs muted truncate row gap-2 archive-sub">
                     <Car size={12} className="faint" />
                     <span className="truncate">
-                      {wo.vehicle?.model || 'MINI'}{' '}
+                      {vehicleLabel(wo.vehicle)}{' '}
                       <span className="mono">{wo.vehicle?.plate || ''}</span>
                       {wo.vehicle?.client ? ` · ${wo.vehicle.client.full_name}` : ''}
                     </span>

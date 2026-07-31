@@ -10,7 +10,16 @@ export class CreateVehicleDto {
 
   @IsOptional()
   @IsString()
+  make?: string;
+
+  @IsOptional()
+  @IsString()
   model?: string;
+
+  /** Optional link into the generations catalog; null для не-каталожных машин. */
+  @IsOptional()
+  @IsUUID()
+  generation_id?: string | null;
 
   @IsOptional()
   @IsString()

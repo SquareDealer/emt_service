@@ -19,6 +19,10 @@ export type TimelineOrientation = 'vertical' | 'horizontal';
 
 /** Width (px) of the day-label column in horizontal mode. */
 const LABEL_W = 64;
+/** Width (px) of the hour-gutter column in vertical mode. */
+const AXIS_W = 48;
+/** Min day-column width (px): narrow screens pan the week instead of squeezing it. */
+const V_MIN_COL = 120;
 /** Min band height + per-overlap-lane height (px) for a day row in horizontal mode. */
 const BAND_MIN = 120;
 const PER_LANE = 80;
@@ -46,6 +50,11 @@ export interface ScheduleTimelineProps {
   onEventResize?: (id: string, durationMin: number) => void;
   /** Called when the selection is placed/moved/resized. */
   onSelect?: (startISO: string, durationMin: number) => void;
+  /**
+   * Click (not drag) on empty space, in `interactive` mode. Grab-pan still owns
+   * dragging — a press that travels ≤3px is treated as a click instead.
+   */
+  onEmptyClick?: (startISO: string, durationMin: number) => void;
 }
 
 interface DragSession {
@@ -81,6 +90,7 @@ export function ScheduleTimeline({
   onEventMove,
   onEventResize,
   onSelect,
+  onEmptyClick,
 }: ScheduleTimelineProps) {
   const horizontal = orientation === 'horizontal';
   const dragRef = useRef<DragSession | null>(null);
@@ -226,11 +236,43 @@ export function ScheduleTimeline({
   // Event presses stopPropagation in onBlockDown, so they never start a pan.
   const panEnabled = !selectable;
   const panRef = useRef<{ x: number; y: number; l: number; t: number } | null>(null);
+  // Where an empty-space press landed. Captured on pointerdown because
+  // setPointerCapture below retargets pointerup to the scroll container, so by
+  // then e.target no longer tells us which day column was hit.
+  const emptyHitRef = useRef<{ dayIndex: number; startMin: number } | null>(null);
+
+  /** Snapped start minute for a pointer press inside a day column/lane. */
+  const hitStartMin = (e: React.PointerEvent, cell: HTMLElement, dur: number): number => {
+    const rect = cell.getBoundingClientRect();
+    const local = horizontal ? e.clientX - rect.left : e.clientY - rect.top;
+    return clamp(
+      snapMinutes(dayStartMin + local / pxPerMin, cfg.slotMin),
+      dayStartMin,
+      Math.max(dayStartMin, dayEndMin - dur),
+    );
+  };
+
   const onScrollDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!panEnabled || e.button !== 0) return;
     if ((e.target as HTMLElement).closest('.stl-ev')) return; // let event drag/click win
     const el = scrollRef.current;
     if (!el) return;
+
+    // Read the day cell now, while the event target is still the real element.
+    // The index comes from data-di, not from indexOf over the grid's children —
+    // the first child is the hour axis/corner, so positions do not line up.
+    emptyHitRef.current = null;
+    if (onEmptyClick) {
+      const cell = (e.target as HTMLElement).closest<HTMLElement>('.stl-col, .stl-lane');
+      const di = cell?.dataset.di;
+      if (cell && di !== undefined) {
+        emptyHitRef.current = {
+          dayIndex: Number(di),
+          startMin: hitStartMin(e, cell, defaultDurationMin),
+        };
+      }
+    }
+
     e.preventDefault();
     panRef.current = { x: e.clientX, y: e.clientY, l: el.scrollLeft, t: el.scrollTop };
     el.setPointerCapture(e.pointerId);
@@ -240,6 +282,9 @@ export function ScheduleTimeline({
     const p = panRef.current;
     const el = scrollRef.current;
     if (!p || !el) return;
+    if (Math.abs(e.clientX - p.x) > 3 || Math.abs(e.clientY - p.y) > 3) {
+      emptyHitRef.current = null; // it's a pan, not a click
+    }
     el.scrollLeft = p.l - (e.clientX - p.x);
     el.scrollTop = p.t - (e.clientY - p.y);
   };
@@ -249,6 +294,13 @@ export function ScheduleTimeline({
     panRef.current = null;
     el.releasePointerCapture?.(e.pointerId);
     el.classList.remove('stl-panning');
+
+    const hit = emptyHitRef.current;
+    emptyHitRef.current = null;
+    if (hit && onEmptyClick) {
+      const start = dateAtMinutes(days[hit.dayIndex], hit.startMin);
+      onEmptyClick(start.toISOString(), defaultDurationMin);
+    }
   };
   const panProps = panEnabled
     ? { onPointerDown: onScrollDown, onPointerMove: onScrollMove, onPointerUp: onScrollUp, onPointerCancel: onScrollUp }
@@ -302,6 +354,7 @@ export function ScheduleTimeline({
         key={ev.id}
         className="stl-ev"
         data-status={ev.status}
+        data-kind={ev.kind === 'block' ? 'block' : undefined}
         data-sel={isSel || undefined}
         data-drag={dragging || undefined}
         role={clickable || draggable ? 'button' : undefined}
@@ -376,6 +429,7 @@ export function ScheduleTimeline({
                 <div
                   key={`lane-${d.toISOString()}`}
                   className="stl-lane"
+                  data-di={di}
                   style={{ width: gridLength, cursor: selectable ? 'copy' : undefined }}
                   onPointerDown={selectable ? (e) => onEmptyDown(e, di) : undefined}
                 >
@@ -405,7 +459,10 @@ export function ScheduleTimeline({
       <div className={scrollClass} ref={scrollRef} {...panProps}>
         <div
           className="stl-grid"
-          style={{ gridTemplateColumns: `48px repeat(${days.length}, minmax(0, 1fr))` }}
+          style={{
+            gridTemplateColumns: `${AXIS_W}px repeat(${days.length}, minmax(${V_MIN_COL}px, 1fr))`,
+            minWidth: AXIS_W + days.length * V_MIN_COL,
+          }}
         >
           {showHeaders && (
             <>
@@ -435,6 +492,7 @@ export function ScheduleTimeline({
               <div
                 key={`c-${d.toISOString()}`}
                 className="stl-col"
+                data-di={di}
                 style={{ height: gridLength, cursor: selectable ? 'copy' : undefined }}
                 onPointerDown={selectable ? (e) => onEmptyDown(e, di) : undefined}
               >

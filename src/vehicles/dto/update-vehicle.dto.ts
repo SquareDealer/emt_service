@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 export class UpdateVehicleDto {
   @IsOptional()
@@ -7,7 +7,16 @@ export class UpdateVehicleDto {
 
   @IsOptional()
   @IsString()
+  make?: string;
+
+  @IsOptional()
+  @IsString()
   model?: string;
+
+  /** Send null to unlink from the catalog (make/model typed by hand stay). */
+  @IsOptional()
+  @IsUUID()
+  generation_id?: string | null;
 
   @IsOptional()
   @IsString()

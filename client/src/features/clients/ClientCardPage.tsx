@@ -19,6 +19,7 @@ import {
   dateTime,
   money,
   sourceLabel,
+  vehicleLabel,
 } from '../../lib/format';
 import { Avatar, EmptyState, Modal, Spinner, StatusPill } from '../../components/ui';
 import { ClientFormModal } from './ClientFormModal';
@@ -104,7 +105,7 @@ export function ClientCardPage() {
             <span className="badge">{sourceLabel(client.source)}</span>
           </div>
           <div className="row gap-4 wrap" style={{ marginTop: 4 }}>
-            <a className="row gap-2 muted text-sm" href={`tel:${client.phone}`}>
+            <a className="row gap-2 muted text-sm client-head-phone" href={`tel:${client.phone}`}>
               <Phone size={14} /> <span className="mono">{fmtPhone(client.phone)}</span>
             </a>
             <span className="text-sm muted">в базе с {dateShort(client.created_at)}</span>
@@ -113,7 +114,7 @@ export function ClientCardPage() {
             ) : null}
           </div>
         </div>
-        <div className="row gap-2">
+        <div className="row gap-2 client-head-actions">
           <button className="btn btn-default" onClick={() => setEditClient(true)}>
             <Pencil size={15} /> Изменить
           </button>
@@ -166,7 +167,7 @@ export function ClientCardPage() {
                   <div className="veh-icon"><Car size={18} /></div>
                   <div className="col grow" style={{ minWidth: 0 }}>
                     <button className="veh-name" onClick={() => setEditVehicle(v)} title="Редактировать">
-                      {v.model || 'MINI'} <span className="mono faint">· {v.plate || v.vin || 'без номера'}</span>
+                      {vehicleLabel(v)} <span className="mono faint">· {v.plate || v.vin || 'без номера'}</span>
                     </button>
                     <span className="text-xs muted">
                       {[v.year, v.mileage ? `${new Intl.NumberFormat('ru-RU').format(v.mileage)} км` : null].filter(Boolean).join(' · ') || 'нет данных'}
@@ -195,7 +196,7 @@ export function ClientCardPage() {
                   <div className="col" style={{ minWidth: 0 }}>
                     <span className="fw-500 truncate">{w.title || 'Заказ-наряд'}</span>
                     <span className="text-xs muted">
-                      {w.vehicle?.model || 'MINI'} <span className="mono">{w.vehicle?.plate || ''}</span>
+                      {vehicleLabel(w.vehicle)} <span className="mono">{w.vehicle?.plate || ''}</span>
                       {w.scheduled_at ? ` · ${dateTime(w.scheduled_at)}` : ''}
                     </span>
                   </div>

@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
   IsBoolean,
@@ -60,8 +61,16 @@ class UpdateTemplateDto {
 }
 
 import { TaskTemplatesService } from './task-templates.service';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
 
+/**
+ * Reading is open to anyone signed in; editing is owner/receptionist only.
+ * Until the price list existed there was no guard here at all — a plain master
+ * could delete the entire works catalog. Deliberate behaviour change.
+ */
 @Controller('task-templates')
+@UseGuards(RolesGuard)
 export class TaskTemplatesController {
   constructor(private readonly templates: TaskTemplatesService) {}
 
@@ -76,17 +85,21 @@ export class TaskTemplatesController {
   }
 
   @Post()
+  @Roles('owner', 'master_receptionist')
   create(@Body() dto: CreateTemplateDto) {
     return this.templates.create(dto);
   }
 
   @Patch(':id')
+  @Roles('owner', 'master_receptionist')
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateTemplateDto) {
     return this.templates.update(id, dto);
   }
 
+  /** Soft delete: labor lines keep a link to the template they came from. */
   @Delete(':id')
+  @Roles('owner', 'master_receptionist')
   remove(@Param('id', ParseUUIDPipe) id: string) {
-    return this.templates.remove(id);
+    return this.templates.deactivate(id);
   }
 }

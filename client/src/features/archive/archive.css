@@ -27,10 +27,11 @@
 
 @media (max-width: 720px) {
   .archive-row {
-    grid-template-columns: 52px minmax(0, 1fr) 110px 36px 20px;
+    grid-template-columns: 52px minmax(0, 1fr) 96px 44px;
   }
   .col-closed,
   .list-head .col-closed {
     display: none;
   }
+  .archive-row > :last-child { display: none; }
 }

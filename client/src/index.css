@@ -38,12 +38,13 @@
     /* control sizing */
     --control-h: 2.25rem;
     --row-h: 2.75rem;
+    --touch-target: 2.75rem;
 
     /* z-scale */
     --z-dropdown: 100;
     --z-sticky: 200;
-    --z-drawer: 300;
-    --z-backdrop: 400;
+    --z-backdrop: 300;
+    --z-drawer: 400;
     --z-modal: 500;
     --z-toast: 600;
     --z-tooltip: 700;
@@ -523,4 +524,23 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* The dense desktop layout keeps its compact controls; touch layouts do not. */
+@media (max-width: 900px) {
+  :root {
+    --control-h: var(--touch-target);
+    --row-h: 3rem;
+  }
+
+  .btn-sm,
+  .input.btn-sm,
+  .select.btn-sm { height: var(--touch-target); }
+  .btn { min-width: var(--touch-target); }
+  .btn-icon.btn-sm { width: var(--touch-target); }
+  .seg-btn { min-height: var(--touch-target); }
+  .list-row[role='button'],
+  .back-link,
+  .wo-client,
+  .veh-name { min-height: var(--touch-target); }
 }

@@ -24,7 +24,48 @@ export interface TimelineEvent {
   subtitle?: string;
   /** Assigned master name — shown as a badge (owner/receptionist only). */
   masterName?: string;
-  kind?: 'event' | 'selection';
+  /** 'block' = reserved time that is not a work order. */
+  kind?: 'event' | 'selection' | 'block';
+}
+
+/** Prefix marking a calendar block, so its uuid can't collide with a work order's. */
+export const BLOCK_ID_PREFIX = 'blk:';
+
+export function blockEventId(id: string): string {
+  return `${BLOCK_ID_PREFIX}${id}`;
+}
+
+/**
+ * Split a timeline id back into what it points at. The timeline's callbacks hand
+ * back a bare id string, but the calendar now shows two kinds of thing that need
+ * two different mutations.
+ */
+export function parseEventId(id: string): { kind: 'block' | 'work-order'; id: string } {
+  return id.startsWith(BLOCK_ID_PREFIX)
+    ? { kind: 'block', id: id.slice(BLOCK_ID_PREFIX.length) }
+    : { kind: 'work-order', id };
+}
+
+/** Minimal shape of a calendar block — avoids importing the API types here. */
+export interface BlockLike {
+  id: string;
+  title: string | null;
+  starts_at: string;
+  duration_min: number;
+  user?: { id: string; name: string } | null;
+}
+
+/** Render a reserved-time block as a timeline event. */
+export function blockToEvent(b: BlockLike): TimelineEvent {
+  return {
+    id: blockEventId(b.id),
+    start: new Date(b.starts_at),
+    durationMin: b.duration_min,
+    kind: 'block',
+    // The whole point is being able to block time without naming it.
+    title: b.title?.trim() || 'Занято',
+    subtitle: b.user?.name ? `Личный резерв · ${b.user.name}` : 'Резерв',
+  };
 }
 
 export interface Positioned<T> {
@@ -59,6 +100,24 @@ export function dateAtMinutes(day: Date, minutes: number): Date {
   d.setHours(0, 0, 0, 0);
   d.setMinutes(minutes);
   return d;
+}
+
+/**
+ * Half-open [from, to) range covering the given days, as absolute ISO instants.
+ *
+ * The API used to receive `yyyy-MM-dd`, which the server parses as UTC midnight
+ * while `scheduled_at` is a timestamptz compared in the server's zone — in MSK
+ * that shifts the window by 3 hours, dropping 00:00–03:00 of the first day and
+ * leaking the same slice of the day after the last. Invisible while everything
+ * sits inside 08:00–20:00, but reserve blocks are explicitly for odd hours.
+ */
+export function dayRangeIso(days: Date[]): { from: string; to: string } {
+  const first = new Date(days[0]);
+  first.setHours(0, 0, 0, 0);
+  const last = new Date(days[days.length - 1]);
+  last.setHours(0, 0, 0, 0);
+  last.setDate(last.getDate() + 1);
+  return { from: first.toISOString(), to: last.toISOString() };
 }
 
 /** Half-open interval overlap on raw timestamps. */

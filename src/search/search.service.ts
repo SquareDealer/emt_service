@@ -12,7 +12,9 @@ export interface SearchHit {
   source?: string;
   vin?: string | null;
   plate?: string | null;
+  make?: string | null;
   model?: string | null;
+  generation_code?: string | null;
   client?: { id: string; full_name: string; phone: string } | null;
 }
 
@@ -50,6 +52,11 @@ export class SearchService {
       .leftJoinAndSelect('v.client', 'client')
       .where('v.vin ILIKE :like', { like })
       .orWhere('v.plate ILIKE :like', { like })
+      // Make/model/generation joined the search once cars stopped being all-MINI:
+      // «Countryman» or «BMW» previously matched nothing.
+      .orWhere('v.make ILIKE :like', { like })
+      .orWhere('v.model ILIKE :like', { like })
+      .orWhere('v.generation_code ILIKE :like', { like })
       .orderBy('v.created_at', 'DESC')
       .limit(LIMIT)
       .getMany();
@@ -67,7 +74,9 @@ export class SearchService {
       type: 'vehicle',
       vin: v.vin,
       plate: v.plate,
+      make: v.make,
       model: v.model,
+      generation_code: v.generation_code,
       client: v.client
         ? { id: v.client.id, full_name: v.client.full_name, phone: v.client.phone }
         : null,

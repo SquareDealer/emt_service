@@ -33,8 +33,8 @@
 
 /* smeta tables */
 .smeta { display: flex; flex-direction: column; }
-.labor-grid { grid-template-columns: minmax(0, 1fr) 64px 96px 96px 100px 64px; }
-.part-grid { grid-template-columns: minmax(0, 1fr) 124px 100px 100px 64px; }
+.labor-grid { grid-template-columns: minmax(0, 1fr) 56px 88px 88px 96px 96px 64px; }
+.part-grid { grid-template-columns: minmax(0, 1fr) 116px 92px 96px 96px 64px; }
 
 .smeta-head, .smeta-row, .smeta-add {
   display: grid;
@@ -73,9 +73,32 @@
 /* part add-row: name + optional артикул share the first grid column */
 .part-name-cell { display: flex; gap: var(--sp-2); min-width: 0; }
 .part-name-cell .cell-input.grow { flex: 1 1 auto; min-width: 0; }
-.part-name-cell .cell-input.art { flex: 0 0 96px; }
+.part-name-cell .cell-input.art { flex: 0 0 88px; }
+.part-name-cell .cell-input.brand { flex: 0 0 88px; }
 
 /* part qty + unit (шт/л) share the qty column */
+/* Block heading inside the estimate — «работа + её запчасти». */
+.smeta-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
+}
+.smeta-group-name {
+  font-weight: 500;
+  font-size: var(--text-sm);
+}
+.smeta-group + .smeta-row { border-top: none; }
+
+.disc-cell { display: flex; gap: 4px; min-width: 0; }
+.disc-cell .cell-input { flex: 1 1 auto; min-width: 0; }
+.disc-cell .unit-select { flex: 0 0 40px; height: 1.875rem; padding: 0 2px 0 4px; border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--bg); color: var(--ink); font-size: var(--text-xs); }
+/* A discount is a reduction — show it as one. */
+.smeta-row .disc { color: var(--danger); }
+
 .qty-cell { display: flex; gap: 4px; min-width: 0; }
 .qty-cell .cell-input { flex: 1 1 auto; min-width: 0; }
 .qty-cell .unit-select { flex: 0 0 46px; height: 1.875rem; padding: 0 2px 0 4px; border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--bg); color: var(--ink); font-size: var(--text-xs); }
@@ -94,4 +117,13 @@
   padding: var(--sp-2); border-radius: var(--r-sm);
   background: var(--primary-wash); color: var(--primary-ink);
   font-size: var(--text-sm); font-weight: 500;
+}
+
+@media (max-width: 620px) {
+  .smeta { overflow-x: auto; }
+  .smeta-head, .smeta-row, .smeta-add { align-self: flex-start; }
+  .labor-grid { min-width: 880px; grid-template-columns: minmax(180px, 1fr) 56px 88px 88px 96px 96px 92px; }
+  .part-grid { min-width: 740px; grid-template-columns: minmax(180px, 1fr) 116px 92px 96px 96px 92px; }
+  .smeta-row .del, .smeta-row .edit { opacity: 1; }
+  .row-actions { gap: 4px; }
 }

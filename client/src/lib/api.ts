@@ -2,14 +2,20 @@ import type {
   AppSettings,
   ArchiveSort,
   AuthUser,
+  CalendarBlock,
   Client,
   ImportReport,
   Paginated,
+  PartTemplate,
+  PriceListRow,
+  TaskTemplatePart,
+  TemplatePreview,
   SearchHit,
   TaskTemplate,
   User,
   UserRole,
   Vehicle,
+  VehicleGeneration,
   WorkOrder,
   WorkOrderStatus,
 } from './types';
@@ -141,6 +147,29 @@ export const api = {
   updateVehicle: (id: string, body: Partial<Vehicle>) =>
     request<Vehicle>(`/vehicles/${id}`, { method: 'PATCH', body }),
 
+  // vehicle generations (справочник поколений — ключ прайс-листа)
+  vehicleGenerations: (all = false) =>
+    request<VehicleGeneration[]>(`/vehicle-generations${all ? '?all=1' : ''}`),
+  createVehicleGeneration: (body: Partial<VehicleGeneration>) =>
+    request<VehicleGeneration>('/vehicle-generations', { body }),
+  updateVehicleGeneration: (id: string, body: Partial<VehicleGeneration>) =>
+    request<VehicleGeneration>(`/vehicle-generations/${id}`, { method: 'PATCH', body }),
+  /** Soft delete — the row is retired, not removed (vehicles reference it). */
+  deactivateVehicleGeneration: (id: string) =>
+    request<VehicleGeneration>(`/vehicle-generations/${id}`, { method: 'DELETE' }),
+
+  // calendar blocks (резервные записи — время занято, но это не наряд)
+  calendarBlocks: (from: string, to: string) =>
+    request<CalendarBlock[]>(
+      `/calendar-blocks?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    ),
+  createCalendarBlock: (body: Partial<CalendarBlock>) =>
+    request<CalendarBlock>('/calendar-blocks', { body }),
+  updateCalendarBlock: (id: string, body: Partial<CalendarBlock>) =>
+    request<CalendarBlock>(`/calendar-blocks/${id}`, { method: 'PATCH', body }),
+  deleteCalendarBlock: (id: string) =>
+    request<void>(`/calendar-blocks/${id}`, { method: 'DELETE' }),
+
   // work orders
   workOrders: () => request<WorkOrder[]>('/work-orders'),
   board: () => request<Record<WorkOrderStatus, WorkOrder[]>>('/work-orders/board'),
@@ -177,13 +206,70 @@ export const api = {
     request<WorkOrder>(`/work-orders/${id}/parts/${lineId}`, { method: 'PATCH', body }),
   removePart: (id: string, lineId: string) =>
     request<WorkOrder>(`/work-orders/${id}/parts/${lineId}`, { method: 'DELETE' }),
+  /** Copy the order (optionally onto another car) — the estimate comes along. */
+  duplicateWorkOrder: (id: string, vehicle_id?: string) =>
+    request<WorkOrder>(`/work-orders/${id}/duplicate`, { body: { vehicle_id } }),
+
+  /** What applying a price-list entry would add — shown for confirmation. */
+  templatePreview: (id: string, templateId: string) =>
+    request<TemplatePreview>(`/work-orders/${id}/template-preview?template_id=${templateId}`),
+  applyTemplate: (
+    id: string,
+    body: { template_id: string; part_template_ids?: string[]; qty?: Record<string, number> },
+  ) => request<WorkOrder>(`/work-orders/${id}/apply-template`, { body }),
+
+  // estimate blocks
+  renameGroup: (id: string, groupKey: string, name: string) =>
+    request<WorkOrder>(`/work-orders/${id}/groups/${groupKey}`, { method: 'PATCH', body: { name } }),
+  moveGroup: (id: string, groupKey: string, direction: 'up' | 'down') =>
+    request<WorkOrder>(`/work-orders/${id}/groups/${groupKey}/move`, { body: { direction } }),
+  ungroup: (id: string, groupKey: string) =>
+    request<WorkOrder>(`/work-orders/${id}/groups/${groupKey}`, { method: 'DELETE' }),
+
   setPaid: (id: string, paid_amount: number) =>
     request<WorkOrder>(`/work-orders/${id}/paid`, { method: 'PATCH', body: { paid_amount } }),
   workOrderPdf: (id: string) => requestBlob(`/work-orders/${id}/pdf`),
   workOrderOrderPdf: (id: string) => requestBlob(`/work-orders/${id}/order-pdf`),
 
+  // price list (works priced per generation)
+  priceList: (generationId?: string) =>
+    request<PriceListRow[]>(`/price-list${generationId ? `?generation_id=${generationId}` : ''}`),
+  setPrice: (templateId: string, generationId: string, body: { hours?: number | null; price?: number | null }) =>
+    request<unknown>(`/price-list/${templateId}/${generationId}`, { method: 'PUT', body }),
+  /** Reset a work to the shared base price for that generation. */
+  clearPrice: (templateId: string, generationId: string) =>
+    request<void>(`/price-list/${templateId}/${generationId}`, { method: 'DELETE' }),
+  copyPrices: (body: { from_generation_id: string; to_generation_id: string; mode?: 'replace' | 'fill' }) =>
+    request<{ copied: number; skipped: number }>('/price-list/copy', { body }),
+
+  // parts a work pulls in
+  templateParts: (templateId: string) =>
+    request<TaskTemplatePart[]>(`/price-list/${templateId}/parts`),
+  attachTemplatePart: (
+    templateId: string,
+    partTemplateId: string,
+    body: { generation_id?: string | null; qty?: number | null; is_default?: boolean; slot?: string | null },
+  ) => request<TaskTemplatePart>(`/price-list/${templateId}/parts/${partTemplateId}`, { method: 'PUT', body }),
+  detachTemplatePart: (templateId: string, partTemplateId: string, generationId?: string | null) =>
+    request<void>(
+      `/price-list/${templateId}/parts/${partTemplateId}${generationId ? `?generation_id=${generationId}` : ''}`,
+      { method: 'DELETE' },
+    ),
+
+  // parts catalog
+  partTemplates: (q?: string) =>
+    request<PartTemplate[]>(`/part-templates${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  createPartTemplate: (body: Partial<PartTemplate>) =>
+    request<PartTemplate>('/part-templates', { body }),
+  updatePartTemplate: (id: string, body: Partial<PartTemplate>) =>
+    request<PartTemplate>(`/part-templates/${id}`, { method: 'PATCH', body }),
+  deactivatePartTemplate: (id: string) =>
+    request<PartTemplate>(`/part-templates/${id}`, { method: 'DELETE' }),
+
   // templates & settings
   templates: () => request<TaskTemplate[]>('/task-templates'),
+  updateTemplate: (id: string, body: Partial<TaskTemplate>) =>
+    request<TaskTemplate>(`/task-templates/${id}`, { method: 'PATCH', body }),
   createTemplate: (body: Partial<TaskTemplate>) =>
     request<TaskTemplate>('/task-templates', { body }),
   deleteTemplate: (id: string) =>

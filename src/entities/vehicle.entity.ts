@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { Client } from './client.entity';
 import { WorkOrder } from './work-order.entity';
+import { VehicleGeneration } from './vehicle-generation.entity';
 
 @Entity('vehicles')
 export class Vehicle {
@@ -26,8 +27,27 @@ export class Vehicle {
   @Column({ type: 'text', nullable: true })
   vin: string | null;
 
+  /** «MINI», «BMW», … Free text — the catalog is a helper, not a constraint. */
+  @Column({ type: 'text', nullable: true })
+  make: string | null;
+
   @Column({ type: 'text', nullable: true })
   model: string | null;
+
+  /**
+   * Generation code snapshot («R56»). Denormalized from the catalog on purpose:
+   * it still renders on historic documents if the catalog row is retired, while
+   * `generation_id` is what the price list joins on.
+   */
+  @Column({ name: 'generation_code', type: 'text', nullable: true })
+  generation_code: string | null;
+
+  @Column({ name: 'generation_id', type: 'uuid', nullable: true })
+  generation_id: string | null;
+
+  @ManyToOne(() => VehicleGeneration, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'generation_id' })
+  generation: VehicleGeneration | null;
 
   @Column({ type: 'text', nullable: true })
   plate: string | null;

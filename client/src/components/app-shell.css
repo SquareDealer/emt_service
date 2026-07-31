@@ -22,11 +22,13 @@
   padding: 0 var(--sp-4);
   height: 57px;
   border-bottom: 1px solid var(--border);
+  position: relative;
 }
 .brand-logo { height: 44px; width: auto; display: block; }
 .brand-logo-dark { display: none; }
 [data-theme='dark'] .brand-logo-light { display: none; }
 [data-theme='dark'] .brand-logo-dark { display: block; }
+.drawer-close { display: none; position: absolute; right: var(--sp-3); }
 
 .nav { display: flex; flex-direction: column; gap: 2px; padding: var(--sp-3) var(--sp-2); }
 .nav-link {
@@ -70,6 +72,8 @@
   gap: var(--sp-2);
   height: var(--control-h);
   width: min(420px, 100%);
+  /* съедает свободное место топбара, пока поле не растянуто (≤900px) */
+  margin-right: auto;
   padding: 0 var(--sp-3);
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
@@ -116,6 +120,10 @@
     background: oklch(0.2 0.02 240 / 0.4);
   }
   .hamburger { display: inline-flex; }
+  .drawer-close { display: inline-flex; }
+  .nav-link, .user-chip { min-height: var(--touch-target); }
+  .topbar .btn { flex: 0 0 auto; }
+  .search-trigger { flex: 1 1 0; min-width: 0; }
   .search-trigger kbd { display: none; }
   .search-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .page { padding: var(--sp-4); }
@@ -123,7 +131,6 @@
 
 @media (max-width: 560px) {
   .hide-sm { display: none; }
-  .search-trigger span { display: none; }
 }
 
 /* ---- command palette ---- */

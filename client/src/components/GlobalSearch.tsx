@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Search, User, Car, CornerDownLeft } from 'lucide-react';
 import { api } from '../lib/api';
-import { phone as fmtPhone } from '../lib/format';
+import { phone as fmtPhone, vehicleLabel } from '../lib/format';
 import type { SearchHit } from '../lib/types';
 import { Spinner } from './ui';
 
@@ -131,7 +131,7 @@ export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => 
                 <div className="col grow" style={{ minWidth: 0 }}>
                   <span className="pi-main truncate">
                     <span className="mono">{h.vin || h.plate || '—'}</span>
-                    {h.model ? ` · ${h.model}` : ''}
+                    {vehicleLabel(h, '') ? ` · ${vehicleLabel(h, '')}` : ''}
                   </span>
                   <span className="pi-sub truncate">{h.client?.full_name ?? ''}</span>
                 </div>

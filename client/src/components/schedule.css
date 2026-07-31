@@ -26,6 +26,12 @@
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
+/* pinned on horizontal pan, above both the hour gutter and the day heads */
+.stl-corner {
+  left: 0;
+  z-index: 7;
+  box-shadow: 1px 0 0 var(--border);
+}
 .stl-colhead {
   display: flex;
   flex-direction: column;
@@ -50,8 +56,14 @@
 }
 
 /* --- axis + columns --- */
+/* sticky-left so the hours stay put while the week is panned sideways;
+   the box-shadow lands exactly on .stl-col's border-left, so nothing doubles */
 .stl-axis {
-  position: relative;
+  position: sticky;
+  left: 0;
+  z-index: 6;
+  background: var(--surface);
+  box-shadow: 1px 0 0 var(--border);
 }
 .stl-hour {
   position: absolute;
@@ -143,6 +155,35 @@
   z-index: 3;
 }
 
+/* Reserved time (не заказ-наряд): hatched, muted, visibly "not a job".
+   Uses data-kind because data-sel is taken by the picker's selection block,
+   and a block carries no status — without this it looked like a scheduled order. */
+.stl-ev[data-kind='block'] {
+  --dot: var(--faint);
+  background: repeating-linear-gradient(
+    135deg,
+    var(--surface-2),
+    var(--surface-2) 5px,
+    var(--surface-3) 5px,
+    var(--surface-3) 10px
+  );
+  border-style: dashed;
+  border-left-style: solid;
+  color: var(--muted);
+}
+.stl-ev[data-kind='block']:hover {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--surface-3),
+    var(--surface-3) 5px,
+    var(--surface-2) 5px,
+    var(--surface-2) 10px
+  );
+}
+.stl-ev[data-kind='block'] .stl-ev-title {
+  font-weight: 500;
+}
+
 .stl-ev-time {
   font-size: 11px;
   color: var(--muted);
@@ -206,10 +247,6 @@
 }
 
 /* --- horizontal orientation: time across the top, days as rows --- */
-.stl-grid[data-orient='h'] .stl-corner {
-  left: 0;
-  z-index: 5; /* above both sticky axis and row heads */
-}
 /* top time axis strip (sticky on vertical scroll) */
 .stl-axis-h {
   position: sticky;
@@ -231,7 +268,7 @@
 .stl-rowhead {
   position: sticky;
   left: 0;
-  z-index: 3;
+  z-index: 6; /* above a dragged event (5), like the vertical hour gutter */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -240,6 +277,7 @@
   padding: var(--sp-1);
   background: var(--surface);
   border-top: 1px solid var(--border);
+  box-shadow: 1px 0 0 var(--border);
 }
 .stl-rowhead[data-today] {
   background: var(--primary-wash);

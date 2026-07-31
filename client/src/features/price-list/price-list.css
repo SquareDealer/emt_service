@@ -1,0 +1,47 @@
+.pl-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-4);
+}
+.pl-bar .field.grow { flex: 1 1 auto; }
+
+.pl-grid { grid-template-columns: minmax(0, 1fr) 88px 104px 140px 72px 44px; }
+.tp-grid { grid-template-columns: minmax(0, 1fr) 180px 72px 96px 44px; }
+.parts-grid { grid-template-columns: minmax(0, 1fr) 140px 140px 128px 44px; }
+
+.pl-head,
+.pl-row {
+  display: grid;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+}
+.pl-head {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  text-transform: none;
+}
+.pl-row + .pl-row,
+.pl-head + .pl-row { border-top: 1px solid var(--border); }
+.pl-row:hover { background: var(--surface-2); }
+
+/* An inherited figure reads as "not set here" without needing a second column. */
+.pl-row [data-inherited] { color: var(--muted); }
+
+.pl-src {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--faint);
+  line-height: 1.2;
+}
+
+@media (max-width: 860px) {
+  .pl-grid,
+  .tp-grid,
+  .parts-grid { min-width: 660px; }
+  .panel { overflow-x: auto; }
+}

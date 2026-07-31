@@ -6,10 +6,19 @@ import { ru } from 'date-fns/locale';
 import { Check, User, Car, Wrench, Search, ChevronLeft, ChevronRight, CalendarX, UserCheck } from 'lucide-react';
 import { api, ApiError } from '../lib/api';
 import { useToast } from '../lib/toast';
-import { phone as fmtPhone } from '../lib/format';
+import { phone as fmtPhone, vehicleLabel } from '../lib/format';
 import type { Vehicle } from '../lib/types';
+import { blockToEvent, dayRangeIso } from '../lib/schedule';
+import type { IntakeInitial } from '../lib/intake';
 import type { TimelineCfg, TimelineEvent } from '../lib/schedule';
 import { ScheduleTimeline, SELECTION_ID } from './ScheduleTimeline';
+import {
+  VehicleFields,
+  emptyVehicleFields,
+  vehicleFieldsBody,
+  vehicleFieldsValid,
+} from './VehicleFields';
+import type { VehicleFieldsValue } from './VehicleFields';
 import { Modal, Spinner } from './ui';
 
 type Picked = { id: string; full_name: string; phone: string };
@@ -20,7 +29,16 @@ const STEPS = [
   { n: 3, label: 'Работа', icon: Wrench },
 ];
 
-export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function IntakeModal({
+  open,
+  onClose,
+  initial,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** Slot pre-chosen elsewhere (a click on the calendar). */
+  initial?: IntakeInitial;
+}) {
   const navigate = useNavigate();
   const toast = useToast();
   const qc = useQueryClient();
@@ -36,14 +54,11 @@ export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => v
   const [phone, setPhone] = useState('');
   const [dup, setDup] = useState<{ id: string; name: string } | null>(null);
 
-  // step 2
+  // step 2 — same field set as VehicleFormModal, via the shared component
   const [vehMode, setVehMode] = useState<'new' | 'existing'>('new');
   const [vehId, setVehId] = useState<string>('');
-  const [vin, setVin] = useState('');
-  const [model, setModel] = useState('');
-  const [plate, setPlate] = useState('');
-  const [year, setYear] = useState('');
-  const [mileage, setMileage] = useState('');
+  const [veh, setVeh] = useState<VehicleFieldsValue>(emptyVehicleFields);
+  const patchVeh = (p: Partial<VehicleFieldsValue>) => setVeh((v) => ({ ...v, ...p }));
 
   // step 3
   const [title, setTitle] = useState('');
@@ -62,17 +77,15 @@ export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => v
       setDup(null);
       setVehMode('new');
       setVehId('');
-      setVin('');
-      setModel('');
-      setPlate('');
-      setYear('');
-      setMileage('');
+      setVeh(emptyVehicleFields);
       setTitle('');
-      setScheduledAt('');
-      setDuration('');
-      setPickerDay(new Date());
+      // Seeded from `initial` rather than blanked: opening the wizard from a
+      // calendar slot must keep that slot, and this effect runs on every open.
+      setScheduledAt(initial?.scheduledAt ?? '');
+      setDuration(initial?.durationMin != null ? String(initial.durationMin) : '');
+      setPickerDay(initial?.scheduledAt ? new Date(initial.scheduledAt) : new Date());
     }
-  }, [open]);
+  }, [open, initial]);
 
   const { data: searchHits, isFetching: searching } = useQuery({
     queryKey: ['intake-search', q],
@@ -89,10 +102,17 @@ export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => v
 
   // step 3 — slot picker over the chosen day's existing bookings
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.settings });
-  const dayStr = format(pickerDay, 'yyyy-MM-dd');
+  const dayRange = useMemo(() => dayRangeIso([pickerDay]), [pickerDay]);
   const { data: dayBookings } = useQuery({
-    queryKey: ['calendar', dayStr, dayStr],
-    queryFn: () => api.calendar(dayStr, dayStr),
+    queryKey: ['calendar', dayRange.from, dayRange.to],
+    queryFn: () => api.calendar(dayRange.from, dayRange.to),
+    enabled: open && step === 3,
+  });
+  // Reserved time occupies the shop too — without it the picker would happily
+  // offer a slot that is already blocked.
+  const { data: dayBlocks } = useQuery({
+    queryKey: ['calendar', 'blocks', dayRange.from, dayRange.to],
+    queryFn: () => api.calendarBlocks(dayRange.from, dayRange.to),
     enabled: open && step === 3,
   });
 
@@ -105,18 +125,20 @@ export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => v
   };
 
   const busyEvents: TimelineEvent[] = useMemo(
-    () =>
-      (dayBookings ?? [])
+    () => [
+      ...(dayBookings ?? [])
         .filter((w) => w.scheduled_at)
         .map((w) => ({
           id: w.id,
           start: new Date(w.scheduled_at as string),
           durationMin: w.scheduled_duration_min ?? defaultDur,
           status: w.status,
-          title: w.title?.trim() || `${w.vehicle?.model || 'MINI'} ${w.vehicle?.plate || ''}`.trim(),
+          title: w.title?.trim() || `${vehicleLabel(w.vehicle)} ${w.vehicle?.plate || ''}`.trim(),
           subtitle: w.vehicle?.client?.full_name ?? '',
         })),
-    [dayBookings, defaultDur],
+      ...(dayBlocks ?? []).map(blockToEvent),
+    ],
+    [dayBookings, dayBlocks, defaultDur],
   );
 
   const selection: TimelineEvent | null =
@@ -139,10 +161,7 @@ export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => v
     clientMode === 'existing'
       ? !!picked
       : fullName.trim().length > 0 && phone.trim().length > 0;
-  const step2Valid =
-    vehMode === 'existing'
-      ? !!vehId
-      : !!(vin.trim() || plate.trim() || model.trim());
+  const step2Valid = vehMode === 'existing' ? !!vehId : vehicleFieldsValid(veh);
 
   const next = () => {
     if (step === 1 && !step1Valid) return;
@@ -167,11 +186,7 @@ export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => v
       if (vehMode === 'new' || !vehicleId) {
         const v = await api.createVehicle({
           client_id: clientId,
-          vin: vin.trim() || undefined,
-          model: model.trim() || undefined,
-          plate: plate.trim() || undefined,
-          year: year ? Number(year) : undefined,
-          mileage: mileage ? Number(mileage) : undefined,
+          ...vehicleFieldsBody(veh),
         } as Partial<Vehicle>);
         vehicleId = v.id;
       }
@@ -333,7 +348,7 @@ export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => v
                   onClick={() => setVehId(v.id)}
                 >
                   <div className="col" style={{ minWidth: 0 }}>
-                    <span className="fw-500 truncate">{v.model || 'MINI'} · <span className="mono">{v.plate || v.vin || '—'}</span></span>
+                    <span className="fw-500 truncate">{vehicleLabel(v)} · <span className="mono">{v.plate || v.vin || '—'}</span></span>
                     <span className="text-xs muted">{v.year ?? ''} {v.mileage ? `· ${v.mileage} км` : ''}</span>
                   </div>
                   {vehId === v.id && <Check size={16} className="muted" />}
@@ -341,32 +356,7 @@ export function IntakeModal({ open, onClose }: { open: boolean; onClose: () => v
               ))}
             </div>
           ) : (
-            <>
-              <div className="grid-2">
-                <div className="field">
-                  <label className="label">Модель / поколение</label>
-                  <input className="input" value={model} onChange={(e) => setModel(e.target.value)} placeholder="R56, F56…" autoFocus />
-                </div>
-                <div className="field">
-                  <label className="label">Госномер</label>
-                  <input className="input mono" value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="А123ВС777" />
-                </div>
-              </div>
-              <div className="field">
-                <label className="label">VIN</label>
-                <input className="input mono" value={vin} onChange={(e) => setVin(e.target.value)} placeholder="WMW…" />
-              </div>
-              <div className="grid-2">
-                <div className="field">
-                  <label className="label">Год</label>
-                  <input className="input tnum" value={year} onChange={(e) => setYear(e.target.value.replace(/\D/g, ''))} placeholder="2014" inputMode="numeric" />
-                </div>
-                <div className="field">
-                  <label className="label">Пробег, км</label>
-                  <input className="input tnum" value={mileage} onChange={(e) => setMileage(e.target.value.replace(/\D/g, ''))} placeholder="120000" inputMode="numeric" />
-                </div>
-              </div>
-            </>
+            <VehicleFields value={veh} onChange={patchVeh} autoFocus />
           )}
         </div>
       )}

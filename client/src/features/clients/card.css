@@ -9,6 +9,19 @@
   display: flex; align-items: flex-start; gap: var(--sp-4);
   margin-bottom: var(--sp-4);
 }
+.client-head-phone { white-space: nowrap; }
+
+/* ФИО переносится по словам, а не схлопывается в многоточие (на узком — в одну букву) */
+@media (max-width: 860px) {
+  .client-head .page-title { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+}
+
+@media (max-width: 620px) {
+  .client-head { flex-wrap: wrap; gap: var(--sp-3); }
+  /* кнопки — отдельной строкой под всей информацией, поровну по ширине */
+  .client-head-actions { flex: 1 0 100%; }
+  .client-head-actions .btn { flex: 1 1 0; min-width: 0; }
+}
 
 .client-meta {
   display: flex; gap: var(--sp-3); flex-wrap: wrap;

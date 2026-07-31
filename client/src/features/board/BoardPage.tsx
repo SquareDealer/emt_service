@@ -17,7 +17,7 @@ import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import { useAuth } from '../../lib/auth';
 import { canAssignMaster } from '../../lib/roles';
-import { money, timeOnly, dateShort } from '../../lib/format';
+import { money, timeOnly, dateShort, vehicleLabel } from '../../lib/format';
 import { STATUS_LABEL, STATUS_ORDER } from '../../lib/types';
 import type { WorkOrder, WorkOrderStatus } from '../../lib/types';
 import { Spinner } from '../../components/ui';
@@ -203,7 +203,7 @@ function Card({ wo, showMaster, dragging }: { wo: WorkOrder; showMaster?: boolea
       </div>
       <div className="board-card-meta">
         <Car size={13} />
-        <span className="truncate">{wo.vehicle?.model || 'MINI'} <span className="mono">{wo.vehicle?.plate || ''}</span></span>
+        <span className="truncate">{vehicleLabel(wo.vehicle)} <span className="mono">{wo.vehicle?.plate || ''}</span></span>
       </div>
       {wo.vehicle?.client && <div className="board-card-client truncate">{wo.vehicle.client.full_name}</div>}
       <div className="board-card-foot">

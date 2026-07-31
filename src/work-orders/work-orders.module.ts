@@ -4,7 +4,10 @@ import { WorkOrder } from '../entities/work-order.entity';
 import { LaborLine } from '../entities/labor-line.entity';
 import { PartLine } from '../entities/part-line.entity';
 import { Vehicle } from '../entities/vehicle.entity';
+import { TaskTemplatePart } from '../entities/task-template-part.entity';
 import { WorkOrdersService } from './work-orders.service';
+import { WorkOrdersCoreService } from './work-orders-core.service';
+import { WorkOrderLinesService } from './work-order-lines.service';
 import { WorkOrdersController } from './work-orders.controller';
 import { PricingService } from './pricing.service';
 import { WorkOrderPdfService } from './pdf/work-order-pdf.service';
@@ -14,13 +17,19 @@ import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([WorkOrder, LaborLine, PartLine, Vehicle]),
+    TypeOrmModule.forFeature([WorkOrder, LaborLine, PartLine, Vehicle, TaskTemplatePart]),
     SettingsModule,
     TaskTemplatesModule,
     UsersModule,
   ],
-  providers: [WorkOrdersService, PricingService, WorkOrderPdfService],
+  providers: [
+    WorkOrdersCoreService,
+    WorkOrdersService,
+    WorkOrderLinesService,
+    PricingService,
+    WorkOrderPdfService,
+  ],
   controllers: [WorkOrdersController],
-  exports: [WorkOrdersService, PricingService],
+  exports: [WorkOrdersService, WorkOrderLinesService, PricingService],
 })
 export class WorkOrdersModule {}

@@ -1,0 +1,155 @@
+{
+  "_comment": "Shared estimate-math fixtures. Imported by BOTH src/work-orders/pricing.service.spec.ts (server) and client/src/lib/format.spec.ts (client mirror). If the two implementations drift, one of the suites fails mechanically instead of the difference surfacing on a customer's invoice.",
+  "cases": [
+    {
+      "name": "без скидок",
+      "labor": [{ "hours": 2, "rate_snapshot": 1500 }],
+      "parts": [{ "qty": 2, "unit_price": 500 }],
+      "order": null,
+      "expect": {
+        "laborGross": 3000,
+        "partsGross": 1000,
+        "lineDiscountTotal": 0,
+        "orderDiscountAmount": 0,
+        "total": 4000,
+        "discountSum": 0
+      }
+    },
+    {
+      "name": "скидка строки и скидка наряда складываются последовательно (10% + 10% = 19%, не 20%)",
+      "labor": [
+        { "hours": 1, "rate_snapshot": 2500, "price_override": 2500, "discount_type": "percent", "discount_value": 10 }
+      ],
+      "parts": [],
+      "order": { "type": "percent", "value": 10 },
+      "expect": {
+        "laborGross": 2500,
+        "partsGross": 0,
+        "lineDiscountTotal": 250,
+        "orderDiscountAmount": 225,
+        "total": 2025,
+        "discountSum": 475
+      }
+    },
+    {
+      "name": "скидка на строку режет price_override, а не часы × ставку",
+      "labor": [
+        { "hours": 10, "rate_snapshot": 1000, "price_override": 3000, "discount_type": "percent", "discount_value": 10 }
+      ],
+      "parts": [],
+      "order": null,
+      "expect": {
+        "laborGross": 3000,
+        "partsGross": 0,
+        "lineDiscountTotal": 300,
+        "orderDiscountAmount": 0,
+        "total": 2700,
+        "discountSum": 300
+      }
+    },
+    {
+      "name": "фиксированная скидка строки не может превысить саму строку",
+      "labor": [],
+      "parts": [{ "qty": 1, "unit_price": 500, "discount_type": "fixed", "discount_value": 800 }],
+      "order": null,
+      "expect": {
+        "laborGross": 0,
+        "partsGross": 500,
+        "lineDiscountTotal": 500,
+        "orderDiscountAmount": 0,
+        "total": 0,
+        "discountSum": 500
+      }
+    },
+    {
+      "name": "процент строки клэмпится в 0..100",
+      "labor": [{ "hours": 1, "rate_snapshot": 1000, "discount_type": "percent", "discount_value": 500 }],
+      "parts": [],
+      "order": null,
+      "expect": {
+        "laborGross": 1000,
+        "partsGross": 0,
+        "lineDiscountTotal": 1000,
+        "orderDiscountAmount": 0,
+        "total": 0,
+        "discountSum": 1000
+      }
+    },
+    {
+      "name": "AC-4: фиксированная скидка наряда",
+      "labor": [{ "hours": 2, "rate_snapshot": 1500 }],
+      "parts": [{ "qty": 2, "unit_price": 500 }],
+      "order": { "type": "fixed", "value": 500 },
+      "expect": {
+        "laborGross": 3000,
+        "partsGross": 1000,
+        "lineDiscountTotal": 0,
+        "orderDiscountAmount": 500,
+        "total": 3500,
+        "discountSum": 500
+      }
+    },
+    {
+      "name": "фиксированная скидка наряда не уводит итог ниже нуля",
+      "labor": [{ "hours": 1, "rate_snapshot": 1000 }],
+      "parts": [],
+      "order": { "type": "fixed", "value": 5000 },
+      "expect": {
+        "laborGross": 1000,
+        "partsGross": 0,
+        "lineDiscountTotal": 0,
+        "orderDiscountAmount": 1000,
+        "total": 0,
+        "discountSum": 1000
+      }
+    },
+    {
+      "name": "дробные литры: округление один раз в конце (1.5 × 333.33 = 499.995 → 500)",
+      "labor": [],
+      "parts": [{ "qty": 1.5, "unit_price": 333.33 }],
+      "order": null,
+      "expect": {
+        "laborGross": 0,
+        "partsGross": 499.995,
+        "lineDiscountTotal": 0,
+        "orderDiscountAmount": 0,
+        "total": 500,
+        "discountSum": 0
+      }
+    },
+    {
+      "name": "скидка строки округляется до копеек, чтобы печатная колонка сходилась",
+      "labor": [],
+      "parts": [{ "qty": 3, "unit_price": 33.33, "discount_type": "percent", "discount_value": 10 }],
+      "order": null,
+      "expect": {
+        "laborGross": 0,
+        "partsGross": 99.99,
+        "lineDiscountTotal": 10,
+        "orderDiscountAmount": 0,
+        "total": 89.99,
+        "discountSum": 10
+      }
+    },
+    {
+      "name": "скидки на работах и на запчастях одновременно",
+      "labor": [
+        { "hours": 2, "rate_snapshot": 1500, "discount_type": "percent", "discount_value": 10 },
+        { "hours": 1, "rate_snapshot": 3000 }
+      ],
+      "parts": [
+        { "qty": 1, "unit_price": 4500, "discount_type": "fixed", "discount_value": 500 },
+        { "qty": 2, "unit_price": 400 }
+      ],
+      "order": null,
+      "expect": {
+        "laborGross": 6000,
+        "partsGross": 5300,
+        "lineDiscountTotal": 800,
+        "orderDiscountAmount": 0,
+        "total": 10500,
+        "discountSum": 800
+      }
+    }
+  ]
+}
