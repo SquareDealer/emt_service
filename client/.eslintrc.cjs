@@ -14,4 +14,14 @@ module.exports = {
     '@typescript-eslint/no-explicit-any': 'off',
     '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
   },
+  overrides: [
+    {
+      files: ['src/**/*View.tsx'],
+      rules: {
+        'no-restricted-imports': ['error', {
+          patterns: ['**/lib/api', '**/lib/auth', '**/lib/query', '**/lib/toast', '@tanstack/react-query'],
+        }],
+      },
+    },
+  ],
 };

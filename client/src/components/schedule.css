@@ -125,7 +125,7 @@
   transition: background 120ms ease;
   z-index: 1;
 }
-.stl-ev:hover {
+.stl-ev:hover, .stl-ev[data-hover] {
   background: var(--surface-3);
 }
 .stl-ev[data-status='scheduled'] {
@@ -171,7 +171,7 @@
   border-left-style: solid;
   color: var(--muted);
 }
-.stl-ev[data-kind='block']:hover {
+.stl-ev[data-kind='block']:hover, .stl-ev[data-kind='block'][data-hover] {
   background: repeating-linear-gradient(
     135deg,
     var(--surface-3),

@@ -64,7 +64,7 @@
   box-shadow: var(--shadow-sm);
   transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
-.board-card:hover { border-color: var(--border-strong); }
+.board-card:hover, .board-card[data-hover] { border-color: var(--border-strong); }
 .board-card.is-dragging { box-shadow: var(--shadow-lg); border-color: var(--primary); cursor: grabbing; transform: rotate(1.5deg); }
 .board-card-top { display: flex; align-items: flex-start; gap: var(--sp-2); }
 .board-card-title { font-size: var(--text-sm); font-weight: 500; flex: 1; min-width: 0; }

@@ -1,7 +1,7 @@
 .shell {
   display: grid;
   grid-template-columns: 240px 1fr;
-  min-height: 100dvh;
+  min-height: var(--shell-h);
 }
 
 .sidebar {
@@ -12,7 +12,7 @@
   flex-direction: column;
   position: sticky;
   top: 0;
-  height: 100dvh;
+  height: var(--shell-h);
 }
 
 .brand {
@@ -42,7 +42,7 @@
   font-size: var(--text-sm);
   transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
 }
-.nav-link:hover { background: var(--surface-3); color: var(--ink); }
+.nav-link:hover, .nav-link[data-hover] { background: var(--surface-3); color: var(--ink); }
 .nav-link.active { background: var(--primary-wash); color: var(--primary-ink); }
 .nav-link.active svg { color: var(--primary); }
 .nav-link svg { width: 17px; height: 17px; color: var(--muted); }

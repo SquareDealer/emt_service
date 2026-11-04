@@ -17,6 +17,7 @@ import { GlobalSearch } from './GlobalSearch';
 import { IntakeModal } from './IntakeModal';
 import { IntakeContext } from '../lib/intake';
 import type { IntakeInitial } from '../lib/intake';
+import { DEFAULT_BRAND } from '../lib/brand';
 import './app-shell.css';
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -103,13 +104,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="brand">
             <img
               className="brand-logo brand-logo-light"
-              src="/emt-logo-light-theme.png"
-              alt="EMT Service"
+              src={DEFAULT_BRAND.logoLight}
+              alt={DEFAULT_BRAND.name}
             />
             <img
               className="brand-logo brand-logo-dark"
-              src="/emt-logo-dark-theme.png"
-              alt="EMT Service"
+              src={DEFAULT_BRAND.logoDark}
+              alt={DEFAULT_BRAND.name}
             />
             <button
               ref={closeButtonRef}

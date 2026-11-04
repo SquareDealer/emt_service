@@ -20,5 +20,5 @@
     "esModuleInterop": true,
     "resolveJsonModule": true
   },
-  "exclude": ["node_modules", "dist", "client"]
+  "exclude": ["node_modules", "dist", "client", "video"]
 }
