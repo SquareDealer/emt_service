@@ -95,6 +95,7 @@ export function Modal({
   children,
   footer,
   width,
+  inline,
 }: {
   open: boolean;
   onClose: () => void;
@@ -102,6 +103,8 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
   width?: number;
+  /** Render the dialog already open, in normal flow (no top layer) — for frame renderers. */
+  inline?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   // Only a backdrop click that BOTH started and ended on the dialog itself should
@@ -111,15 +114,16 @@ export function Modal({
 
   useEffect(() => {
     const dlg = ref.current;
-    if (!dlg) return;
+    if (!dlg || inline) return;
     if (open && !dlg.open) dlg.showModal();
     if (!open && dlg.open) dlg.close();
-  }, [open]);
+  }, [open, inline]);
 
   if (!open) return null;
-  return (
+  const dialog = (
     <dialog
       ref={ref}
+      open={inline || undefined}
       onCancel={(e) => {
         e.preventDefault();
         onClose();
@@ -156,4 +160,5 @@ export function Modal({
       </form>
     </dialog>
   );
+  return inline ? <div className="modal-inline-backdrop">{dialog}</div> : dialog;
 }

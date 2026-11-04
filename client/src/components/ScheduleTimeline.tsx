@@ -11,6 +11,7 @@ import {
 } from '../lib/schedule';
 import { assignLanes } from '../lib/schedule';
 import type { TimelineCfg, TimelineEvent } from '../lib/schedule';
+import { useNow } from '../lib/now';
 import './schedule.css';
 
 export const SELECTION_ID = '__selection__';
@@ -79,7 +80,7 @@ export function ScheduleTimeline({
   days,
   events,
   cfg,
-  now = new Date(),
+  now: nowProp,
   orientation = 'vertical',
   interactive = false,
   selectable = false,
@@ -92,6 +93,8 @@ export function ScheduleTimeline({
   onSelect,
   onEmptyClick,
 }: ScheduleTimelineProps) {
+  const ctxNow = useNow();
+  const now = nowProp ?? ctxNow;
   const horizontal = orientation === 'horizontal';
   const dragRef = useRef<DragSession | null>(null);
   const previewRef = useRef<Preview | null>(null);

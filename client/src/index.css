@@ -441,6 +441,13 @@
     width: 100%;
   }
   dialog::backdrop { background: oklch(0.2 0.02 240 / 0.4); backdrop-filter: blur(2px); }
+  .modal-inline-backdrop {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: var(--backdrop, rgba(0, 0, 0, 0.35));
+  }
 
   /* form layout */
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }

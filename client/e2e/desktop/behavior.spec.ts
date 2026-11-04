@@ -179,6 +179,18 @@ test.describe('calendar', () => {
     expect(new Date(body.scheduled_at).toISOString()).toBe('2026-11-19T09:00:00.000Z'); // 12:00 Moscow
   });
 
+  test('escape closes slot menu', async ({ page }) => {
+    await page.goto('/calendar');
+    await expect(page.locator('.stl-ev').first()).toBeVisible();
+    const col = page.locator('.stl-col[data-di="4"]'); // Fri, no events
+    const box = (await col.boundingBox())!;
+    await page.mouse.click(box.x + box.width / 2, box.y + 40);
+    const menu = page.getByRole('dialog');
+    await expect(menu).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
+  });
+
   test('calendar places events on the right day and time', async ({ page }) => {
     await page.goto('/calendar');
     await expect(page.locator('.stl-ev').first()).toBeVisible();
