@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { addDays, addWeeks, endOfWeek, format, startOfWeek } from 'date-fns';
-import { ru } from 'date-fns/locale';
+import { addDays, addWeeks, format, startOfWeek } from 'date-fns';
 import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import { useAuth } from '../../lib/auth';
 import { canAssignMaster } from '../../lib/roles';
 import type { WorkOrder } from '../../lib/types';
-import { vehicleLabel } from '../../lib/format';
+import { calendarRangeLabel, workOrderToEvent } from '../../lib/view-helpers';
 import { blockToEvent, dayRangeIso, hasConflict, parseEventId } from '../../lib/schedule';
 import type { TimelineCfg, TimelineEvent } from '../../lib/schedule';
 import { useIntake } from '../../lib/intake';
@@ -24,10 +23,6 @@ import './calendar.css';
 type View = 'week' | 'day';
 
 const ORIENT_KEY = 'crm-cal-orientation';
-
-function eventTitle(w: WorkOrder): string {
-  return w.title?.trim() || `${vehicleLabel(w.vehicle)} ${w.vehicle?.plate || ''}`.trim();
-}
 
 export function CalendarPage() {
   const navigate = useNavigate();
@@ -79,16 +74,8 @@ export function CalendarPage() {
   const events: TimelineEvent[] = useMemo(
     () =>
       (data ?? [])
-        .filter((w) => w.scheduled_at)
-        .map((w) => ({
-          id: w.id,
-          start: new Date(w.scheduled_at as string),
-          durationMin: w.scheduled_duration_min ?? defaultDur,
-          status: w.status,
-          title: eventTitle(w),
-          subtitle: w.vehicle?.client?.full_name ?? '',
-          masterName: showMaster ? w.assigned_master?.name : undefined,
-        })),
+        .map((w) => workOrderToEvent(w, defaultDur, { showMaster }))
+        .filter((e): e is TimelineEvent => e !== null),
     [data, defaultDur, showMaster],
   );
 
@@ -171,10 +158,7 @@ export function CalendarPage() {
   const move = (dir: number) =>
     setAnchor((d) => (view === 'day' ? addDays(d, dir) : addWeeks(d, dir)));
 
-  const rangeLabel =
-    view === 'day'
-      ? format(anchor, 'd MMMM yyyy', { locale: ru })
-      : `${format(days[0], 'd MMM', { locale: ru })} — ${format(endOfWeek(anchor, { weekStartsOn: 1 }), 'd MMM yyyy', { locale: ru })}`;
+  const rangeLabel = calendarRangeLabel(view, days);
 
   return (
     <div className="page page-wide">

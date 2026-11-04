@@ -4,6 +4,7 @@ import { Check, Wrench, Package } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import { money } from '../../lib/format';
+import { templateTotal } from '../../lib/view-helpers';
 import { Modal, Spinner } from '../../components/ui';
 import type { WorkOrder } from '../../lib/types';
 
@@ -51,16 +52,7 @@ export function ApplyTemplateModal({
       return next;
     });
 
-  const total = useMemo(() => {
-    if (!preview) return 0;
-    const labor =
-      preview.labor.price_override ??
-      (preview.labor.hours ?? 0) * preview.labor.rate_snapshot;
-    const parts = preview.parts
-      .filter((p) => picked.has(p.part_template_id))
-      .reduce((s, p) => s + (Number(qty[p.part_template_id]) || 0) * (p.unit_price ?? 0), 0);
-    return labor + parts;
-  }, [preview, picked, qty]);
+  const total = useMemo(() => templateTotal(preview, picked, qty), [preview, picked, qty]);
 
   const mApply = useMutation({
     mutationFn: () =>

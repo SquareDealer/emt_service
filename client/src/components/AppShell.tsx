@@ -1,23 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
-  Users,
-  LayoutGrid,
-  CalendarDays,
-  Archive,
-  Upload,
-  Settings,
   Search,
   Sun,
   Moon,
   LogOut,
   Menu,
   Plus,
-  Tag,
   X,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
-import { isPlainMaster, canManageUsers } from '../lib/roles';
+import { navForRole } from '../lib/view-helpers';
 import { useTheme } from '../lib/theme';
 import { Avatar } from './ui';
 import { GlobalSearch } from './GlobalSearch';
@@ -25,16 +18,6 @@ import { IntakeModal } from './IntakeModal';
 import { IntakeContext } from '../lib/intake';
 import type { IntakeInitial } from '../lib/intake';
 import './app-shell.css';
-
-const NAV = [
-  { to: '/clients', label: 'Клиенты', icon: Users },
-  { to: '/board', label: 'Доска', icon: LayoutGrid },
-  { to: '/calendar', label: 'Календарь', icon: CalendarDays },
-  { to: '/price-list', label: 'Прайс-лист', icon: Tag },
-  { to: '/archive', label: 'Архив', icon: Archive },
-  { to: '/import', label: 'Импорт базы', icon: Upload },
-  { to: '/settings', label: 'Настройки', icon: Settings },
-];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
@@ -59,14 +42,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (restoreFocus) requestAnimationFrame(() => menuButtonRef.current?.focus());
   };
 
-  // A plain master has no business in Settings (rates, requisites, staff);
-  // base import is owner-only.
-  const nav = NAV.filter((n) => {
-    if (n.to === '/settings' && isPlainMaster(user?.role)) return false;
-    if (n.to === '/price-list' && isPlainMaster(user?.role)) return false;
-    if (n.to === '/import' && !canManageUsers(user?.role)) return false;
-    return true;
-  });
+  const nav = navForRole(user?.role);
 
   useEffect(() => setDrawer(false), [loc.pathname]);
 

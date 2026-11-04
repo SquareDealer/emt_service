@@ -58,24 +58,10 @@ import { ScheduleTimeline, SELECTION_ID } from '../../components/ScheduleTimelin
 import { ApplyTemplateModal } from './ApplyTemplateModal';
 import { DuplicateModal } from './DuplicateModal';
 import { Spinner, StatusPill, EmptyState, Modal } from '../../components/ui';
+import { isEmptyWo } from '../../lib/view-helpers';
 import './wo.css';
 
 interface BackTarget { to: string; label: string }
-
-function isEmptyWo(w: WorkOrder | null): boolean {
-  return (
-    !!w &&
-    w.status === 'scheduled' &&
-    (w.labor_lines?.length ?? 0) === 0 &&
-    (w.part_lines?.length ?? 0) === 0 &&
-    !w.title?.trim() &&
-    !w.notes?.trim() &&
-    !w.complaint?.trim() &&
-    !w.recommendation?.trim() &&
-    !w.scheduled_at &&
-    !w.discount_type
-  );
-}
 
 function toLocalInput(iso: string | null): string {
   if (!iso) return '';
