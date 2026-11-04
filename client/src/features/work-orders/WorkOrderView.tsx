@@ -743,10 +743,10 @@ function PartLineForm({
     discValue: draft?.discValue ?? discValue,
   };
 
-  const onQty = (v: string, u: PartUnit) =>
+  const onQty = (s: string, u: PartUnit) =>
     u === 'l'
-      ? v.replace(',', '.').replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1')
-      : v.replace(/\D/g, '');
+      ? s.replace(',', '.').replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1')
+      : s.replace(/\D/g, '');
 
   const submit = () => {
     if (!v.name.trim() || !v.price) return;
@@ -771,7 +771,7 @@ function PartLineForm({
         <input className="cell-input art" value={v.cat} placeholder="Артикул" onChange={(e) => setCat(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
       </div>
       <div className="qty-cell">
-        <input className="cell-input ta-r tnum" value={v.qty} placeholder="кол-во" onChange={(e) => setQty(onQty(e.target.value, unit))} inputMode="decimal" />
+        <input className="cell-input ta-r tnum" value={v.qty} placeholder="кол-во" onChange={(e) => setQty(onQty(e.target.value, v.unit))} inputMode="decimal" />
         <select className="unit-select" value={v.unit} onChange={(e) => { const u = e.target.value as PartUnit; setUnit(u); setQty((q) => onQty(q, u)); }} aria-label="Единица">
           <option value="pcs">шт</option>
           <option value="l">л</option>

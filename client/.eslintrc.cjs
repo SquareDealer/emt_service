@@ -16,7 +16,7 @@ module.exports = {
   },
   overrides: [
     {
-      files: ['src/**/*View.tsx'],
+      files: ['src/**/*View.tsx', 'src/features/work-orders/ScheduleFields.tsx'],
       rules: {
         'no-restricted-imports': ['error', {
           patterns: ['**/lib/api', '**/lib/auth', '**/lib/query', '**/lib/toast', '@tanstack/react-query'],
