@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Search, User, Car, CornerDownLeft } from 'lucide-react';
 import { api } from '../lib/api';
-import { phone as fmtPhone, vehicleLabel } from '../lib/format';
 import type { SearchHit } from '../lib/types';
-import { Spinner } from './ui';
+import { SearchPaletteView } from './SearchPaletteView';
 
 export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [q, setQ] = useState('');
@@ -46,7 +44,7 @@ export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => 
     onClose();
   };
 
-  const onKey = (e: React.KeyboardEvent) => {
+  const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') return onClose();
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -60,93 +58,19 @@ export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => 
     }
   };
 
-  const clients = hits.filter((h) => h.type === 'client');
-  const vehicles = hits.filter((h) => h.type === 'vehicle');
-  let idx = -1;
-
   return (
-    <div className="palette-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="palette" role="dialog" aria-modal="true" aria-label="Поиск">
-        <div className="palette-input">
-          <Search size={18} className="muted" />
-          <input
-            ref={inputRef}
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={onKey}
-            placeholder="Поиск клиента, телефона, VIN или госномера…"
-            aria-label="Поисковый запрос"
-          />
-          {isFetching && <Spinner />}
-        </div>
-
-        <div className="palette-results">
-          {debounced.length < 1 && (
-            <div className="empty" style={{ padding: 'var(--sp-6)' }}>
-              <Search />
-              <div className="text-sm muted">Начните вводить — ищем по всей базе</div>
-            </div>
-          )}
-          {debounced.length >= 1 && !isFetching && hits.length === 0 && (
-            <div className="empty" style={{ padding: 'var(--sp-6)' }}>
-              <div className="text-sm muted">Ничего не найдено по «{debounced}»</div>
-            </div>
-          )}
-
-          {clients.length > 0 && <div className="palette-group">Клиенты</div>}
-          {clients.map((h) => {
-            idx++;
-            const i = idx;
-            return (
-              <button
-                key={h.id}
-                className="palette-item"
-                data-active={i === active}
-                onMouseEnter={() => setActive(i)}
-                onClick={() => go(h)}
-              >
-                <User size={16} className="muted" />
-                <div className="col grow" style={{ minWidth: 0 }}>
-                  <span className="pi-main truncate">{h.full_name}</span>
-                  <span className="pi-sub mono">{fmtPhone(h.phone)}</span>
-                </div>
-                {i === active && <CornerDownLeft size={14} className="faint" />}
-              </button>
-            );
-          })}
-
-          {vehicles.length > 0 && <div className="palette-group">Автомобили</div>}
-          {vehicles.map((h) => {
-            idx++;
-            const i = idx;
-            return (
-              <button
-                key={h.id}
-                className="palette-item"
-                data-active={i === active}
-                onMouseEnter={() => setActive(i)}
-                onClick={() => go(h)}
-              >
-                <Car size={16} className="muted" />
-                <div className="col grow" style={{ minWidth: 0 }}>
-                  <span className="pi-main truncate">
-                    <span className="mono">{h.vin || h.plate || '—'}</span>
-                    {vehicleLabel(h, '') ? ` · ${vehicleLabel(h, '')}` : ''}
-                  </span>
-                  <span className="pi-sub truncate">{h.client?.full_name ?? ''}</span>
-                </div>
-                {i === active && <CornerDownLeft size={14} className="faint" />}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="palette-foot">
-          <span><kbd>↑↓</kbd> навигация</span>
-          <span><kbd>↵</kbd> открыть</span>
-          <span><kbd>esc</kbd> закрыть</span>
-        </div>
-      </div>
-    </div>
+    <SearchPaletteView
+      q={q}
+      settledQ={debounced}
+      hits={hits}
+      active={active}
+      fetching={isFetching}
+      inputRef={inputRef}
+      onQ={setQ}
+      onKeyDown={onKey}
+      onHover={setActive}
+      onPick={go}
+      onClose={onClose}
+    />
   );
 }

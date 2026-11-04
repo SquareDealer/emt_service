@@ -1,24 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
-import {
-  Search,
-  Sun,
-  Moon,
-  LogOut,
-  Menu,
-  Plus,
-  X,
-} from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { navForRole } from '../lib/view-helpers';
 import { useTheme } from '../lib/theme';
-import { Avatar } from './ui';
+import { AppShellView } from './AppShellView';
 import { GlobalSearch } from './GlobalSearch';
 import { IntakeModal } from './IntakeModal';
 import { IntakeContext } from '../lib/intake';
 import type { IntakeInitial } from '../lib/intake';
-import { DEFAULT_BRAND } from '../lib/brand';
-import './app-shell.css';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
@@ -90,103 +79,33 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <IntakeContext.Provider value={intakeCtx}>
-      <div className="shell">
-        {drawer && (
-          <div className="sidebar-backdrop" onClick={() => closeDrawer()} aria-hidden="true" />
-        )}
-        <aside
-          ref={drawerRef}
-          className={`sidebar ${drawer ? 'open' : ''}`}
-          role={drawer ? 'dialog' : undefined}
-          aria-modal={drawer || undefined}
-          aria-label={drawer ? 'Навигация' : undefined}
-        >
-          <div className="brand">
-            <img
-              className="brand-logo brand-logo-light"
-              src={DEFAULT_BRAND.logoLight}
-              alt={DEFAULT_BRAND.name}
+      <AppShellView
+        userName={user?.name ?? '?'}
+        nav={nav}
+        theme={theme}
+        drawerOpen={drawer}
+        drawerRef={drawerRef}
+        menuButtonRef={menuButtonRef}
+        closeButtonRef={closeButtonRef}
+        onOpenSearch={() => setSearchOpen(true)}
+        onNewIntake={() => setIntakeOpen(true)}
+        onToggleTheme={toggle}
+        onLogout={logout}
+        onOpenDrawer={() => setDrawer(true)}
+        onCloseDrawer={closeDrawer}
+        overlays={
+          <>
+            <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+            <IntakeModal
+              open={intakeOpen}
+              initial={intakeInitial}
+              onClose={() => setIntakeOpen(false)}
             />
-            <img
-              className="brand-logo brand-logo-dark"
-              src={DEFAULT_BRAND.logoDark}
-              alt={DEFAULT_BRAND.name}
-            />
-            <button
-              ref={closeButtonRef}
-              className="btn btn-ghost btn-icon drawer-close"
-              type="button"
-              onClick={() => closeDrawer()}
-              aria-label="Закрыть меню"
-            >
-              <X size={18} />
-            </button>
-          </div>
-          <nav id="main-navigation" className="nav">
-            {nav.map(({ to, label, icon: Icon }) => (
-              <NavLink key={to} to={to} className="nav-link" onClick={() => closeDrawer(false)}>
-                <Icon />
-                {label}
-              </NavLink>
-            ))}
-          </nav>
-          <div className="sidebar-foot">
-            <button className="user-chip" onClick={logout} title="Выйти">
-              <Avatar name={user?.name ?? '?'} size={28} />
-              <div className="col grow" style={{ minWidth: 0 }}>
-                <span className="text-sm fw-500 truncate">{user?.name}</span>
-                <span className="text-xs faint">Выйти</span>
-              </div>
-              <LogOut size={15} className="muted" />
-            </button>
-          </div>
-        </aside>
-
-        <div className="main">
-          <header className="topbar">
-            <button
-              ref={menuButtonRef}
-              className="btn btn-ghost btn-icon hamburger"
-              onClick={() => setDrawer(true)}
-              aria-label="Меню"
-              aria-expanded={drawer}
-              aria-controls="main-navigation"
-            >
-              <Menu size={18} />
-            </button>
-            <button className="search-trigger" onClick={() => setSearchOpen(true)}>
-              <Search size={16} />
-              <span>Поиск по ФИО, телефону, VIN, госномеру…</span>
-              <kbd>⌘K</kbd>
-            </button>
-            <button
-              className="btn btn-primary"
-              onClick={() => setIntakeOpen(true)}
-              aria-label="Новый приём"
-              title="Новый приём"
-            >
-              <Plus size={16} />
-              <span className="hide-sm">Новый приём</span>
-            </button>
-            <button
-              className="btn btn-ghost btn-icon"
-              onClick={toggle}
-              aria-label={theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}
-              title={theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}
-            >
-              {theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}
-            </button>
-          </header>
-          <main className="content">{children}</main>
-        </div>
-
-        <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
-        <IntakeModal
-          open={intakeOpen}
-          initial={intakeInitial}
-          onClose={() => setIntakeOpen(false)}
-        />
-      </div>
+          </>
+        }
+      >
+        {children}
+      </AppShellView>
     </IntakeContext.Provider>
   );
 }
