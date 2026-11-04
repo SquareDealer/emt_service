@@ -21,7 +21,10 @@ test('board shows five columns with cards', async ({ page }) => {
 test('work order shows blocks, discounts and total', async ({ page }) => {
   await page.goto('/work-orders/wo-full');
   const expectedTotal = orderTotal(WO_FULL);
-  await expect(page.getByText(money(expectedTotal)).first()).toBeVisible();
+  // Scoped to the «Итого» row so «Остаток» (same figure when unpaid) cannot satisfy it.
+  const totalRow = page.locator('.sum-total');
+  await expect(totalRow).toContainText('Итого');
+  await expect(totalRow).toContainText(money(expectedTotal));
   await expect(page.locator('main')).toMatchAriaSnapshot();
 });
 
