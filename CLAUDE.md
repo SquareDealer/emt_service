@@ -165,13 +165,15 @@ index.css дизайн-токены (OKLCH, light/dark via [data-theme]), ком
 - Страница (`*Page.tsx`) — **контейнер**: запросы, мутации, навигация, toast, auth. View — только
   `props → JSX`; CSS фичи импортируется во view (контейнер получает стили транзитивно).
 - View **не импортирует** `lib/api`, `lib/auth`, `lib/query`, `lib/toast`, `@tanstack/react-query`
-  (ни прямо, ни транзитивно); время — через `useNow()`, бренд — через проп `brand`. Это держит
-  ESLint-override для `src/**/*View.tsx` и `features/work-orders/ScheduleFields.tsx` (запрет этих
-  импортов + чистота). `ScheduleTimeline` и `Modal` из `ui.tsx` — чистые, их View использует.
+  (проверяется ESLint по прямым импортам); время — через `useNow()`, бренд — через проп `brand`. ESLint-override
+  проверяет прямые импорты во view и в их общих модулях: `src/**/*View.tsx`,
+  `features/work-orders/ScheduleFields.tsx`, `components/ui.tsx`, `components/ScheduleTimeline.tsx`,
+  `features/calendar/SlotMenu.tsx`, `lib/{view-helpers,now,format,schedule,brand}` (транзитивно не
+  проверяется). `ScheduleTimeline` и `Modal` из `ui.tsx` — чистые, их View использует.
 - Демо-пропсы по умолчанию **без эффекта**: `highlight*` → `data-highlight`, `hover*` → `data-hover`
   (CSS-близнецы `[data-hover]` рядом с `:hover`), `forcePreview`, `rowStyle`, `overStatus`/`ghostId`
   (состояние drag), `inline` (Modal рисуется на месте без `showModal()`), `brand`; черновики форм —
-  `laborDraft`/`partDraft` на WorkOrderView (в формы как `draft`, значение `draft?.x ?? state`). Для скриптов видео на узлах стоят `data-demo="…"`.
+  `laborDraft`/`partDraft`/`discountDraft` на WorkOrderView (в формы как `draft`, значение `draft?.x ?? state`); `eventStyle` на CalendarView/ScheduleTimeline (стиль события по id, как `rowStyle`). Для скриптов видео на узлах стоят `data-demo="…"`.
 - **Жизненный цикл остаётся в контейнере:** в `WorkOrderPage` — `keepRef`/`woRef`, unmount-cleanup
   (авто-удаление пустого наряда), `refetchOnMount: 'always'`, `onMutate` в `mUpdate`; эффекты не
   переносить (StrictMode). Неконтролируемые инпуты наряда (title без `key`, textarea с
