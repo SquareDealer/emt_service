@@ -171,13 +171,13 @@ index.css дизайн-токены (OKLCH, light/dark via [data-theme]), ком
 - Демо-пропсы по умолчанию **без эффекта**: `highlight*` → `data-highlight`, `hover*` → `data-hover`
   (CSS-близнецы `[data-hover]` рядом с `:hover`), `forcePreview`, `rowStyle`, `overStatus`/`ghostId`
   (состояние drag), `inline` (Modal рисуется на месте без `showModal()`), `brand`; черновики форм —
-  `draftProp ?? state`. Для скриптов видео на узлах стоят `data-demo="…"`.
+  `laborDraft`/`partDraft` на WorkOrderView (в формы как `draft`, значение `draft?.x ?? state`). Для скриптов видео на узлах стоят `data-demo="…"`.
 - **Жизненный цикл остаётся в контейнере:** в `WorkOrderPage` — `keepRef`/`woRef`, unmount-cleanup
   (авто-удаление пустого наряда), `refetchOnMount: 'always'`, `onMutate` в `mUpdate`; эффекты не
   переносить (StrictMode). Неконтролируемые инпуты наряда (title без `key`, textarea с
   `key=wo.id+value`, duration с `key`) переехали во view буквально — не «чинить».
-- Каталоги `video/` и `demo/` (если появятся) исключены из корневого `tsconfig`, из
-  `tsconfig.build.json` и из `.dockerignore`.
+- Корневой `tsconfig.json` исключает `video`; `tsconfig.build.json` и `.dockerignore` исключают
+  `video` и `demo` (`demo` в корневом tsconfig не исключён намеренно — typecheck покрывает демо-сид).
 
 Дизайн: Linear-like (тихий/плотный/точный), стальной-синий primary + латунный accent.
 Полная спека — `DESIGN.md`. Навигация на наряд передаёт `state.back={to,label}`.
