@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { addDays, addWeeks, format, startOfWeek } from 'date-fns';
-import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import { useAuth } from '../../lib/auth';
@@ -15,10 +14,9 @@ import { useIntake } from '../../lib/intake';
 import { BlockModal } from './BlockModal';
 import { SlotMenu } from './SlotMenu';
 import type { CalendarBlock } from '../../lib/types';
-import { ScheduleTimeline } from '../../components/ScheduleTimeline';
+import { CalendarView } from './CalendarView';
 import type { TimelineOrientation } from '../../components/ScheduleTimeline';
-import { Spinner } from '../../components/ui';
-import './calendar.css';
+import { useNow } from '../../lib/now';
 
 type View = 'week' | 'day';
 
@@ -30,7 +28,8 @@ export function CalendarPage() {
   const toast = useToast();
   const { user } = useAuth();
   const showMaster = canAssignMaster(user?.role);
-  const [anchor, setAnchor] = useState(new Date());
+  const nowForAnchor = useNow();
+  const [anchor, setAnchor] = useState(() => nowForAnchor);
   const [view, setView] = useState<View>('week');
   const [orientation, setOrientation] = useState<TimelineOrientation>(
     () => (localStorage.getItem(ORIENT_KEY) as TimelineOrientation) || 'vertical',
@@ -161,55 +160,26 @@ export function CalendarPage() {
   const rangeLabel = calendarRangeLabel(view, days);
 
   return (
-    <div className="page page-wide">
-      <div className="page-head">
-        <div>
-          <h1 className="page-title">Календарь</h1>
-          <p className="page-sub">Записи по времени и длительности — тяните, чтобы перенести или растянуть</p>
-        </div>
-        <div className="row gap-2 wrap cal-controls">
-          <div className="seg">
-            <button className="seg-btn" data-on={view === 'week'} onClick={() => setView('week')}>Неделя</button>
-            <button className="seg-btn" data-on={view === 'day'} onClick={() => setView('day')}>День</button>
-          </div>
-          <div className="seg">
-            <button className="seg-btn" data-on={orientation === 'vertical'} onClick={() => setOrientation('vertical')}>Верт.</button>
-            <button className="seg-btn" data-on={orientation === 'horizontal'} onClick={() => setOrientation('horizontal')}>Гориз.</button>
-          </div>
-          <div className="row gap-1">
-            <button className="btn btn-default btn-icon" onClick={() => move(-1)} aria-label="Назад"><ChevronLeft size={16} /></button>
-            <button className="btn btn-default" onClick={() => setAnchor(new Date())}>Сегодня</button>
-            <button className="btn btn-default btn-icon" onClick={() => move(1)} aria-label="Вперёд"><ChevronRight size={16} /></button>
-          </div>
-        </div>
-      </div>
-
-      <div className="cal-rangebar">{rangeLabel}</div>
-
-      {isLoading ? (
-        <div className="center" style={{ minHeight: 280 }}><Spinner size={22} /></div>
-      ) : (
-        <ScheduleTimeline
-          days={days}
-          events={allEvents}
-          cfg={cfg}
-          orientation={orientation}
-          interactive
-          defaultDurationMin={defaultDur}
-          onEventClick={onEventClick}
-          onEventMove={onEventMove}
-          onEventResize={onEventResize}
-          onEmptyClick={(startISO, durationMin) => setSlotMenu({ startISO, durationMin })}
-        />
-      )}
-
-      {!isLoading && allEvents.length === 0 && (
-        <div className="empty" style={{ marginTop: 'var(--sp-4)' }}>
-          <CalendarDays />
-          <div className="empty-title">На этот период записей нет</div>
-          <div className="text-sm muted">Кликните по свободному месту, чтобы добавить запись или резерв.</div>
-        </div>
-      )}
+    <>
+      <CalendarView
+        days={days}
+        view={view}
+        orientation={orientation}
+        rangeLabel={rangeLabel}
+        events={allEvents}
+        cfg={cfg}
+        loading={isLoading}
+        defaultDurationMin={defaultDur}
+        onView={setView}
+        onOrientation={setOrientation}
+        onPrev={() => move(-1)}
+        onToday={() => setAnchor(new Date())}
+        onNext={() => move(1)}
+        onEventClick={onEventClick}
+        onEventMove={onEventMove}
+        onEventResize={onEventResize}
+        onEmptyClick={(startISO, durationMin) => setSlotMenu({ startISO, durationMin })}
+      />
 
       <SlotMenu
         slot={slotMenu}
@@ -234,6 +204,6 @@ export function CalendarPage() {
           setNewBlockSlot(null);
         }}
       />
-    </div>
+    </>
   );
 }

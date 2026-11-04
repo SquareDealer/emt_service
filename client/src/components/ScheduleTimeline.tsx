@@ -56,6 +56,12 @@ export interface ScheduleTimelineProps {
    * dragging — a press that travels ≤3px is treated as a click instead.
    */
   onEmptyClick?: (startISO: string, durationMin: number) => void;
+  /** Demo: render this event as if it were being dragged (same as an internal preview). */
+  forcePreview?: { id: string; startMin: number; durMin: number } | null;
+  /** Demo: mark one event with data-highlight. */
+  highlightId?: string;
+  /** Demo: mark one event with data-hover (twin of :hover). */
+  hoverId?: string;
 }
 
 interface DragSession {
@@ -92,13 +98,17 @@ export function ScheduleTimeline({
   onEventResize,
   onSelect,
   onEmptyClick,
+  forcePreview,
+  highlightId,
+  hoverId,
 }: ScheduleTimelineProps) {
   const ctxNow = useNow();
   const now = nowProp ?? ctxNow;
   const horizontal = orientation === 'horizontal';
   const dragRef = useRef<DragSession | null>(null);
   const previewRef = useRef<Preview | null>(null);
-  const [preview, setPreview] = useState<Preview | null>(null);
+  const [internalPreview, setPreview] = useState<Preview | null>(null);
+  const preview = internalPreview ?? forcePreview ?? null;
 
   // Measure the scroll viewport so the horizontal timeline can stretch the time
   // axis to fill the full width instead of using a fixed px-per-minute.
@@ -360,6 +370,10 @@ export function ScheduleTimeline({
         data-kind={ev.kind === 'block' ? 'block' : undefined}
         data-sel={isSel || undefined}
         data-drag={dragging || undefined}
+        data-highlight={ev.id === highlightId || undefined}
+        data-hover={ev.id === hoverId || undefined}
+        data-demo={isSel ? undefined : 'timeline-event'}
+        data-id={ev.id}
         role={clickable || draggable ? 'button' : undefined}
         tabIndex={clickable ? 0 : undefined}
         style={style}
@@ -399,7 +413,7 @@ export function ScheduleTimeline({
   // ----- Horizontal layout: time across the top, days as rows -----
   if (horizontal) {
     return (
-      <div className="stl" data-orient="h">
+      <div className="stl" data-orient="h" data-demo="timeline">
         <div className={scrollClass} ref={scrollRef} {...panProps}>
           <div
             className="stl-grid"
@@ -458,7 +472,7 @@ export function ScheduleTimeline({
 
   // ----- Vertical layout (default): time down the page, days as columns -----
   return (
-    <div className="stl">
+    <div className="stl" data-demo="timeline">
       <div className={scrollClass} ref={scrollRef} {...panProps}>
         <div
           className="stl-grid"

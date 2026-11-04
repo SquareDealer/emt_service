@@ -18,21 +18,24 @@ export function SlotMenu({
   onClose,
   onBooking,
   onReserve,
+  inline = false,
 }: {
   slot: Slot | null;
   onClose: () => void;
   onBooking: (slot: Slot) => void;
   onReserve: (slot: Slot) => void;
+  inline?: boolean;
 }) {
   const when = slot
     ? format(new Date(slot.startISO), 'd MMMM, HH:mm', { locale: ru })
     : '';
 
   return (
-    <Modal open={!!slot} onClose={onClose} title={when} width={420}>
+    <Modal open={!!slot} onClose={onClose} title={when} width={420} inline={inline}>
       <div className="col gap-2">
         <button
           className="list-row"
+          data-demo="slot-booking"
           style={{ gridTemplateColumns: 'auto 1fr', textAlign: 'left' }}
           onClick={() => slot && onBooking(slot)}
         >
@@ -44,6 +47,7 @@ export function SlotMenu({
         </button>
         <button
           className="list-row"
+          data-demo="slot-reserve"
           style={{ gridTemplateColumns: 'auto 1fr', textAlign: 'left' }}
           onClick={() => slot && onReserve(slot)}
         >
