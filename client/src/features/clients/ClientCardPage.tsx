@@ -77,7 +77,7 @@ export function ClientCardPage() {
   }
 
   return (
-    <div className="page">
+    <>
       <ClientCardView
         client={client}
         vehicles={vehicles}
@@ -115,6 +115,6 @@ export function ClientCardPage() {
           (история выручки), удаление будет отклонено.
         </p>
       </Modal>
-    </div>
+    </>
   );
 }

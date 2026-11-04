@@ -12,6 +12,11 @@ test.beforeEach(async ({ page }) => {
   await stubApi(page);
 });
 
+// Guards against a View root wrapped in a second .page by its container (doubled padding).
+test.afterEach(async ({ page }) => {
+  await expect(page.locator('.page .page')).toHaveCount(0);
+});
+
 test('board shows five columns with cards', async ({ page }) => {
   await page.goto('/board');
   await expect(page.getByText('ТО и тормоза')).toBeVisible();
