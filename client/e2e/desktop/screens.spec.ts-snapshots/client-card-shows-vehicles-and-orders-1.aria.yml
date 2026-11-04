@@ -1,0 +1,52 @@
+- main:
+  - link "Клиенты":
+    - /url: /clients
+    - img
+    - text: ""
+  - heading "Васильев Андрей Сергеевич" [level=1]
+  - text: Вручную
+  - link /\+7 \(\d+\) \d+-\d+-\d+/:
+    - /url: tel:79271234567
+    - img
+    - text: ""
+  - text: /в базе с \d+\.\d+\.\d+ скидка 5%/
+  - button "Изменить":
+    - img
+    - text: ""
+  - button "Удалить клиента":
+    - img
+    - text: ""
+  - text: /3 закрытых сделок \(история\) \d+ \d+ ₽ выручка \(история\) Заметки/
+  - paragraph: Приезжает по субботам
+  - heading "Автомобили · 2" [level=2]
+  - button "Авто":
+    - img
+    - text: ""
+  - img
+  - button /MINI Hatch R56 · А\d+ВС\d+/
+  - text: /\d+ · \d+ \d+ км/
+  - button "Работа":
+    - img
+    - text: ""
+  - img
+  - button /MINI Cooper S F56 · Х\d+ОО\d+/
+  - text: /\d+ · \d+ \d+ км/
+  - button "Работа":
+    - img
+    - text: ""
+  - heading "Заказ-наряды · 5" [level=2]
+  - button /ТО и тормоза MINI Hatch R56 А\d+ВС\d+ · \d+ нояб\., \d+:\d+ В работе \d+ \d+,\d+ ₽/:
+    - text: ""
+    - img
+  - button /Компьютерная диагностика MINI Cooper S F56 Х\d+ОО\d+ · \d+ нояб\., \d+:\d+ Готова 1 \d+ ₽/:
+    - text: ""
+    - img
+  - button /Замена ремня ГРМ MINI Hatch R56 А\d+ВС\d+ · \d+ нояб\., \d+:\d+ Ожидание \d+ \d+ ₽/:
+    - text: ""
+    - img
+  - button /Замена свечей MINI Hatch R56 А\d+ВС\d+ · \d+ окт\., \d+:\d+ Выдана 6 \d+ ₽/:
+    - text: ""
+    - img
+  - button /Заказ-наряд MINI Cooper S F56 Х\d+ОО\d+ Запланирована 0 ₽/:
+    - text: ""
+    - img

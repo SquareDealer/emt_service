@@ -1,0 +1,11 @@
+- dialog "Поиск":
+  - img
+  - textbox "Поисковый запрос":
+    - /placeholder: Поиск клиента, телефона, VIN или госномера…
+    - text: WMW
+  - text: Автомобили
+  - button "WMWSU31090T123456 · MINI Hatch R56 Васильев Андрей Сергеевич":
+    - img
+    - text: ""
+    - img
+  - text: ↑↓ навигация ↵ открыть esc закрыть
