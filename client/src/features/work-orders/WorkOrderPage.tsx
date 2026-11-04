@@ -1,8 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { addDays, format, isSameDay } from 'date-fns';
-import { ru } from 'date-fns/locale';
+import { addDays, isSameDay } from 'date-fns';
 import {
   ArrowLeft,
   Plus,
@@ -15,13 +14,8 @@ import {
   Unlock,
   Check,
   Car,
-  CalendarClock,
-  CalendarSearch,
-  ChevronLeft,
-  ChevronRight,
   ChevronUp,
   ChevronDown,
-  Clock,
   Save,
   StickyNote,
   MessageSquareWarning,
@@ -54,7 +48,8 @@ import type { EstimateGroup } from '../../lib/format';
 import { downloadBlob } from '../../lib/download';
 import { blockToEvent, dayRangeIso, hasConflict } from '../../lib/schedule';
 import type { TimelineCfg, TimelineEvent } from '../../lib/schedule';
-import { ScheduleTimeline, SELECTION_ID } from '../../components/ScheduleTimeline';
+import { SELECTION_ID } from '../../components/ScheduleTimeline';
+import { ScheduleFields, SlotPickerView, laborMinutes } from './ScheduleFields';
 import { ApplyTemplateModal } from './ApplyTemplateModal';
 import { DuplicateModal } from './DuplicateModal';
 import { Spinner, StatusPill, EmptyState, Modal } from '../../components/ui';
@@ -62,13 +57,6 @@ import { isEmptyWo } from '../../lib/view-helpers';
 import './wo.css';
 
 interface BackTarget { to: string; label: string }
-
-function toLocalInput(iso: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const off = d.getTimezoneOffset();
-  return new Date(d.getTime() - off * 60000).toISOString().slice(0, 16);
-}
 
 export function WorkOrderPage() {
   const { id = '' } = useParams();
@@ -1101,9 +1089,7 @@ function ScheduleSection({
   );
 
   const dur = wo.scheduled_duration_min ?? defaultDur;
-  const laborMinutes = Math.round(
-    (wo.labor_lines ?? []).reduce((a, l) => a + (l.hours ?? 0), 0) * 60,
-  );
+  const fitMinutes = laborMinutes(wo);
 
   const selection: TimelineEvent | null =
     wo.scheduled_at && isSameDay(new Date(wo.scheduled_at), pickerDay)
@@ -1133,70 +1119,25 @@ function ScheduleSection({
     warn({ id: wo.id, start: new Date(iso), durationMin: d });
     onChange({ scheduled_at: iso, scheduled_duration_min: d });
   };
+  // ScheduleFields emits exactly one field per change.
+  const onFieldsChange = (b: Partial<WorkOrder>) => {
+    if ('scheduled_at' in b) setStart(b.scheduled_at ?? null);
+    else if (b.scheduled_duration_min != null) setDuration(b.scheduled_duration_min);
+  };
 
   return (
     <>
-      <div className="sum-line">
-        <span className="label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <CalendarClock size={14} /> Запись
-        </span>
-      </div>
-      <div className="col gap-2">
-        <input
-          className="input"
-          type="datetime-local"
-          // Controlled (value, not defaultValue + key): commits on pick via the
-          // optimistic mUpdate, so the time changes the instant you choose it.
-          // No `key` → no remount mid-edit; the optimistic cache write re-renders
-          // the value smoothly. Slot picker / «Подогнать» flow in the same way.
-          value={toLocalInput(wo.scheduled_at)}
-          disabled={disabled}
-          onChange={(e) => {
-            const v = e.target.value;
-            setStart(v ? new Date(v).toISOString() : null);
-          }}
-        />
-        <div className="row gap-2" style={{ alignItems: 'flex-end' }}>
-          <div className="field grow">
-            <label className="label">Длительность, мин</label>
-            <input
-              className="input tnum"
-              key={`dur-${wo.scheduled_duration_min ?? 'd'}`}
-              defaultValue={wo.scheduled_duration_min ?? ''}
-              placeholder={String(defaultDur)}
-              inputMode="numeric"
-              disabled={disabled || !wo.scheduled_at}
-              onBlur={(e) => {
-                const v = e.target.value.replace(/\D/g, '');
-                const n = v ? Number(v) : defaultDur;
-                if (n !== (wo.scheduled_duration_min ?? null)) setDuration(n);
-              }}
-              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-            />
-          </div>
-          <button
-            type="button"
-            className="btn btn-default btn-sm"
-            disabled={disabled}
-            onClick={() => {
-              setPickerDay(wo.scheduled_at ? new Date(wo.scheduled_at) : new Date());
-              setPickOpen(true);
-            }}
-          >
-            <CalendarSearch size={15} /> Слот
-          </button>
-        </div>
-        {!disabled && wo.scheduled_at && laborMinutes > 0 && laborMinutes !== wo.scheduled_duration_min && (
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            style={{ alignSelf: 'flex-start' }}
-            onClick={() => setDuration(laborMinutes)}
-          >
-            <Clock size={14} /> Подогнать под часы работ ({laborMinutes} мин)
-          </button>
-        )}
-      </div>
+      <ScheduleFields
+        wo={wo}
+        defaultDurMin={defaultDur}
+        disabled={disabled}
+        onChange={onFieldsChange}
+        onOpenPicker={() => {
+          setPickerDay(wo.scheduled_at ? new Date(wo.scheduled_at) : new Date());
+          setPickOpen(true);
+        }}
+        onFit={() => setDuration(fitMinutes)}
+      />
 
       <Modal
         open={pickOpen}
@@ -1205,24 +1146,15 @@ function ScheduleSection({
         width={520}
         footer={<button className="btn btn-primary" onClick={() => setPickOpen(false)}>Готово</button>}
       >
-        <div className="row gap-2" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <span className="fw-500" style={{ textTransform: 'capitalize' }}>
-            {format(pickerDay, 'EEEE, d MMMM', { locale: ru })}
-          </span>
-          <div className="row gap-1">
-            <button className="btn btn-default btn-icon btn-sm" onClick={() => setPickerDay((d) => addDays(d, -1))} aria-label="Назад"><ChevronLeft size={15} /></button>
-            <button className="btn btn-default btn-sm" onClick={() => setPickerDay(new Date())}>Сегодня</button>
-            <button className="btn btn-default btn-icon btn-sm" onClick={() => setPickerDay((d) => addDays(d, 1))} aria-label="Вперёд"><ChevronRight size={15} /></button>
-          </div>
-        </div>
-        <ScheduleTimeline
-          days={[pickerDay]}
+        <SlotPickerView
+          day={pickerDay}
           events={busyEvents}
           cfg={cfg}
-          selectable
           selection={selection}
           defaultDurationMin={defaultDur}
-          showHeaders={false}
+          onPrevDay={() => setPickerDay((d) => addDays(d, -1))}
+          onToday={() => setPickerDay(new Date())}
+          onNextDay={() => setPickerDay((d) => addDays(d, 1))}
           onSelect={onSelectSlot}
         />
       </Modal>
