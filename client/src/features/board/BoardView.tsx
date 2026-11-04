@@ -32,8 +32,10 @@ export interface BoardViewProps {
   overStatus?: WorkOrderStatus;
   /** Demo: render this card as the source of a drag in progress. */
   ghostId?: string;
-  /** Demo: hover look on this card. */
+  /** Demo: marks this card with data-highlight (styled by the video). */
   highlightId?: string;
+  /** Demo: hover look on this card (data-hover). */
+  hoverId?: string;
   /** Demo: extra style for a card wrapper, by position within its column. */
   rowStyle?: (index: number, id: string) => CSSProperties;
 }
@@ -49,6 +51,7 @@ export function BoardView({
   overStatus,
   ghostId,
   highlightId,
+  hoverId,
   rowStyle,
 }: BoardViewProps) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -121,6 +124,7 @@ export function BoardView({
                 forceOver={overStatus === s}
                 ghostId={ghostId}
                 highlightId={highlightId}
+                hoverId={hoverId}
                 rowStyle={rowStyle}
               />
             ))}
@@ -142,6 +146,7 @@ function Column({
   forceOver,
   ghostId,
   highlightId,
+  hoverId,
   rowStyle,
 }: {
   status: WorkOrderStatus;
@@ -151,6 +156,7 @@ function Column({
   forceOver?: boolean;
   ghostId?: string;
   highlightId?: string;
+  hoverId?: string;
   rowStyle?: (index: number, id: string) => CSSProperties;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
@@ -169,7 +175,8 @@ function Column({
             showMaster={showMaster}
             onOpen={onOpen}
             ghost={ghostId === w.id}
-            hover={highlightId === w.id}
+            highlight={highlightId === w.id}
+            hover={hoverId === w.id}
             style={rowStyle?.(i, w.id)}
           />
         ))}
@@ -184,6 +191,7 @@ function DraggableCard({
   showMaster,
   onOpen,
   ghost,
+  highlight,
   hover,
   style,
 }: {
@@ -191,6 +199,7 @@ function DraggableCard({
   showMaster: boolean;
   onOpen: (id: string) => void;
   ghost?: boolean;
+  highlight?: boolean;
   hover?: boolean;
   style?: CSSProperties;
 }) {
@@ -208,15 +217,15 @@ function DraggableCard({
       data-id={wo.id}
       style={{ opacity: isDragging || ghost ? 0.35 : 1, ...style }}
     >
-      <BoardCard wo={wo} showMaster={showMaster} hover={hover} />
+      <BoardCard wo={wo} showMaster={showMaster} highlight={highlight} hover={hover} />
     </div>
   );
 }
 
-export function BoardCard({ wo, showMaster, dragging, hover }: { wo: WorkOrder; showMaster?: boolean; dragging?: boolean; hover?: boolean }) {
+export function BoardCard({ wo, showMaster, dragging, highlight, hover }: { wo: WorkOrder; showMaster?: boolean; dragging?: boolean; highlight?: boolean; hover?: boolean }) {
   const total = wo.status === 'closed' ? wo.total_frozen ?? wo.total_cached : wo.total_cached;
   return (
-    <div className={`board-card ${dragging ? 'is-dragging' : ''}`} data-hover={hover ? '' : undefined}>
+    <div className={`board-card ${dragging ? 'is-dragging' : ''}`} data-highlight={highlight ? '' : undefined} data-hover={hover ? '' : undefined}>
       <div className="board-card-top">
         <span className="board-card-title truncate">{wo.title || 'Заказ-наряд'}</span>
         <span className="board-grip" aria-hidden>

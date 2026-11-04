@@ -54,9 +54,16 @@ describe('BoardView', () => {
     expect(html()).not.toContain('margin-top');
   });
 
-  it('highlightId sets data-hover on that card', () => {
-    expect(html({ highlightId: 'c' }).match(/data-hover/g)).toHaveLength(1);
-    expect(html()).not.toContain('data-hover');
+  it('highlightId sets data-highlight and hoverId sets data-hover, each on one card', () => {
+    const h = html({ highlightId: 'c' });
+    expect(h.match(/data-highlight/g)).toHaveLength(1);
+    expect(h).not.toContain('data-hover');
+    const g = html({ hoverId: 'a' });
+    expect(g.match(/data-hover/g)).toHaveLength(1);
+    expect(g).not.toContain('data-highlight');
+    const n = html();
+    expect(n).not.toContain('data-highlight');
+    expect(n).not.toContain('data-hover');
   });
 
   it('loading shows a spinner instead of columns', () => {
