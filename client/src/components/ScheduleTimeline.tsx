@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import {
@@ -62,6 +63,8 @@ export interface ScheduleTimelineProps {
   highlightId?: string;
   /** Demo: mark one event with data-hover (twin of :hover). */
   hoverId?: string;
+  /** Demo: extra style per real event (never the selection), merged into its element style. */
+  eventStyle?: (id: string) => CSSProperties | undefined;
 }
 
 interface DragSession {
@@ -101,6 +104,7 @@ export function ScheduleTimeline({
   forcePreview,
   highlightId,
   hoverId,
+  eventStyle,
 }: ScheduleTimelineProps) {
   const ctxNow = useNow();
   const now = nowProp ?? ctxNow;
@@ -370,13 +374,13 @@ export function ScheduleTimeline({
         data-kind={ev.kind === 'block' ? 'block' : undefined}
         data-sel={isSel || undefined}
         data-drag={dragging || undefined}
-        data-highlight={ev.id === highlightId || undefined}
-        data-hover={ev.id === hoverId || undefined}
+        data-highlight={ev.id === highlightId ? '' : undefined}
+        data-hover={ev.id === hoverId ? '' : undefined}
         data-demo={isSel ? undefined : 'timeline-event'}
         data-id={ev.id}
         role={clickable || draggable ? 'button' : undefined}
         tabIndex={clickable ? 0 : undefined}
-        style={style}
+        style={isSel ? style : { ...style, ...eventStyle?.(ev.id) }}
         onPointerDown={draggable ? (e) => onBlockDown(e, ev, dayIndex, 'move') : undefined}
         onPointerMove={draggable ? onPtrMove : undefined}
         onPointerUp={draggable ? onPtrUp : undefined}

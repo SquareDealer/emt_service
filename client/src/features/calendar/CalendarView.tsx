@@ -19,6 +19,8 @@ export interface CalendarViewProps {
   defaultDurationMin?: number;
   highlightId?: string;
   hoverId?: string;
+  /** Demo: extra style per event, passed to the timeline. */
+  eventStyle?: ScheduleTimelineProps['eventStyle'];
   forcePreview?: ScheduleTimelineProps['forcePreview'];
   onView(v: 'week' | 'day'): void;
   onOrientation(o: TimelineOrientation): void;
@@ -44,6 +46,7 @@ export function CalendarView({
   defaultDurationMin,
   highlightId,
   hoverId,
+  eventStyle,
   forcePreview,
   onView,
   onOrientation,
@@ -68,7 +71,7 @@ export function CalendarView({
             <button className="seg-btn" data-demo="cal-view-day" data-on={view === 'day'} onClick={() => onView('day')}>День</button>
           </div>
           <div className="seg">
-            <button className="seg-btn" data-on={orientation === 'vertical'} onClick={() => onOrientation('vertical')}>Верт.</button>
+            <button className="seg-btn" data-demo="cal-orient-vertical" data-on={orientation === 'vertical'} onClick={() => onOrientation('vertical')}>Верт.</button>
             <button className="seg-btn" data-demo="cal-orient" data-on={orientation === 'horizontal'} onClick={() => onOrientation('horizontal')}>Гориз.</button>
           </div>
           <div className="row gap-1">
@@ -95,6 +98,7 @@ export function CalendarView({
           defaultDurationMin={defaultDurationMin}
           highlightId={highlightId}
           hoverId={hoverId}
+          eventStyle={eventStyle}
           forcePreview={forcePreview}
           onEventClick={onEventClick}
           onEventMove={onEventMove}

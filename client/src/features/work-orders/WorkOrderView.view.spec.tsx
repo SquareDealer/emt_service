@@ -253,6 +253,12 @@ describe('WorkOrderView', () => {
     expect(h).toMatch(/data-demo="part-add"(?:(?!data-demo=).)*value="Цепь ГРМ"(?:(?!data-demo=).)*value="9800"/);
   });
 
+  it('discountDraft pins the order-discount control', () => {
+    const h = html({ discountDraft: { type: 'percent', value: '7' } });
+    expect(h).toMatch(/data-demo="wo-discount"(?:(?!data-demo=).)*<option value="percent" selected/);
+    expect(h).toMatch(/data-demo="wo-discount"(?:(?!data-demo=).)*<input[^>]*value="7"/);
+  });
+
   it('highlightLineId sets one data-highlight, hoverLineId one data-hover', () => {
     const h = html({ highlightLineId: 'pl-filter' });
     expect(h.match(/data-highlight/g)).toHaveLength(1);

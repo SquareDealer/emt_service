@@ -40,7 +40,7 @@ const base = (over: Partial<CalendarViewProps> = {}): CalendarViewProps => ({
 describe('CalendarView', () => {
   it('has every data-demo hook', () => {
     const html = renderToStaticMarkup(<CalendarView {...base()} />);
-    for (const n of ['cal-view-week', 'cal-view-day', 'cal-orient', 'cal-prev', 'cal-today', 'cal-next', 'timeline', 'timeline-event']) {
+    for (const n of ['cal-view-week', 'cal-view-day', 'cal-orient', 'cal-orient-vertical', 'cal-prev', 'cal-today', 'cal-next', 'timeline', 'timeline-event']) {
       expect(html).toContain(`data-demo="${n}"`);
     }
     expect(html).toContain('data-id="a"');
@@ -49,7 +49,30 @@ describe('CalendarView', () => {
   it('highlightId marks exactly one event', () => {
     const html = renderToStaticMarkup(<CalendarView {...base({ highlightId: 'b' })} />);
     expect(html.match(/data-highlight/g)).toHaveLength(1);
-    expect(html).toMatch(/data-highlight="true"[^>]*data-id="b"|data-id="b"[^>]*data-highlight="true"/);
+    expect(html).toMatch(/data-highlight=""[^>]*data-id="b"|data-id="b"[^>]*data-highlight=""/);
+    expect(html).not.toContain('data-highlight="true"');
+  });
+
+  it('hoverId renders an empty data-hover value', () => {
+    const html = renderToStaticMarkup(<CalendarView {...base({ hoverId: 'a' })} />);
+    expect(html).toContain('data-hover=""');
+    expect(html).not.toContain('data-hover="true"');
+  });
+
+  it('eventStyle styles only the matching event, never the selection', () => {
+    const sel: TimelineEvent = { id: '__selection__', start: new Date(2026, 10, 19, 11, 0), durationMin: 60, title: 'Новая', status: 'scheduled', kind: 'selection' };
+    const html = renderToStaticMarkup(
+      <CalendarView {...base({ selection: sel, eventStyle: () => ({ outline: '3px solid red' }) })} />,
+    );
+    const evs = html.match(/<div class="stl-ev"[^>]*>/g) ?? [];
+    expect(evs.filter((e) => e.includes('outline:3px solid red'))).toHaveLength(2);
+    expect(evs.find((e) => e.includes('data-sel'))).not.toContain('outline');
+    const only = renderToStaticMarkup(
+      <CalendarView {...base({ eventStyle: (id) => (id === 'b' ? { outline: '3px solid red' } : undefined) })} />,
+    );
+    const tags = only.match(/<div class="stl-ev"[^>]*>/g) ?? [];
+    expect(tags.filter((e) => e.includes('outline'))).toHaveLength(1);
+    expect(tags.find((e) => e.includes('outline'))).toContain('data-id="b"');
   });
 
   it('hoverId marks one event', () => {

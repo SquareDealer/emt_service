@@ -114,6 +114,8 @@ export interface WorkOrderViewProps {
   laborDraft?: Partial<LaborDraft>;
   /** Demo: pinned values of the part form being edited (`editPartId`), else of the add form. */
   partDraft?: Partial<PartDraft>;
+  /** Demo: pinned values of the order-discount control. */
+  discountDraft?: Partial<{ type: '' | DiscountType; value: string }>;
   /** Demo: style per estimate row; index runs over labor rows, then part rows. */
   rowStyle?: (index: number, id: string) => CSSProperties;
 }
@@ -154,6 +156,7 @@ export function WorkOrderView({
   hoverLineId,
   laborDraft,
   partDraft,
+  discountDraft,
   rowStyle,
 }: WorkOrderViewProps) {
   const closed = wo.status === 'closed';
@@ -477,7 +480,7 @@ export function WorkOrderView({
 
             <div className="sum-line"><span className="muted">Работы + запчасти</span><span className="mono tnum">{money(sub)}</span></div>
 
-            <DiscountControl wo={wo} disabled={closed} onChange={(t, v) => onUpdate({ discount_type: t, discount_value: v })} />
+            <DiscountControl wo={wo} disabled={closed} draft={discountDraft} onChange={(t, v) => onUpdate({ discount_type: t, discount_value: v })} />
 
             {lineDisc > 0 && (
               <div className="sum-line"><span className="muted">Скидки по строкам</span><span className="mono tnum" style={{ color: 'var(--danger)' }}>−{money(lineDisc)}</span></div>
@@ -846,7 +849,7 @@ function MasterControl({
   );
 }
 
-function DiscountControl({ wo, disabled, onChange }: { wo: WorkOrder; disabled: boolean; onChange: (t: DiscountType | null, v: number | null) => void }) {
+function DiscountControl({ wo, disabled, draft, onChange }: { wo: WorkOrder; disabled: boolean; draft?: Partial<{ type: '' | DiscountType; value: string }>; onChange: (t: DiscountType | null, v: number | null) => void }) {
   const [type, setType] = useState<'' | DiscountType>(wo.discount_type ?? '');
   const [val, setVal] = useState(wo.discount_value != null ? String(wo.discount_value) : '');
 
@@ -854,6 +857,9 @@ function DiscountControl({ wo, disabled, onChange }: { wo: WorkOrder; disabled: 
     setType(wo.discount_type ?? '');
     setVal(wo.discount_value != null ? String(wo.discount_value) : '');
   }, [wo.discount_type, wo.discount_value]);
+
+  const shownType = draft?.type ?? type;
+  const shownVal = draft?.value ?? val;
 
   const apply = (t: '' | DiscountType, v: string) => {
     if (!t) onChange(null, null);
@@ -867,7 +873,7 @@ function DiscountControl({ wo, disabled, onChange }: { wo: WorkOrder; disabled: 
         <select
           className="select btn-sm"
           style={{ width: 92, height: '1.875rem' }}
-          value={type}
+          value={shownType}
           disabled={disabled}
           onChange={(e) => { const t = e.target.value as '' | DiscountType; setType(t); apply(t, val); }}
         >
@@ -875,11 +881,11 @@ function DiscountControl({ wo, disabled, onChange }: { wo: WorkOrder; disabled: 
           <option value="percent">%</option>
           <option value="fixed">₽</option>
         </select>
-        {type && (
+        {shownType && (
           <input
             className="input btn-sm tnum"
             style={{ width: 84, height: '1.875rem', textAlign: 'right' }}
-            value={val}
+            value={shownVal}
             disabled={disabled}
             onChange={(e) => setVal(e.target.value.replace(/[^\d.]/g, ''))}
             onBlur={() => apply(type, val)}

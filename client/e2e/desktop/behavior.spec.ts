@@ -66,6 +66,9 @@ test.describe('auto-delete of abandoned orders', () => {
     expect(deletes).toHaveLength(0);
   });
 
+  // Relies on ApplyTemplateModal invalidating ['work-order'] and the stub's fixed GET returning the
+  // empty order: a stateful stub, or dropping that invalidate, would stop this guarding keep() in
+  // onPickTemplate.
   test('picking from price list keeps the order', async ({ page }) => {
     const deletes = track(page, 'DELETE', DELETE_EMPTY);
     await page.route(/\/api\/work-orders\/wo-empty\/apply-template$/, (route) => json(route, NOT_EMPTY));
