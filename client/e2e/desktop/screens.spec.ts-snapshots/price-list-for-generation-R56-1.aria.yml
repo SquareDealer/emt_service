@@ -1,0 +1,42 @@
+- main:
+  - heading "Прайс-лист" [level=1]
+  - paragraph: Цены работ по поколениям и каталог запчастей
+  - button "Работы":
+    - img
+    - text: ""
+  - button "Запчасти":
+    - img
+    - text: ""
+  - text: Поколение
+  - combobox:
+    - option "Базовые цены (для всех)"
+    - option /MINI Hatch R50 · \d+–\d+/
+    - option /MINI Hatch R56 · \d+–\d+/ [selected]
+    - option /MINI Hatch F56 · \d+–\d+/
+  - text: Своя цена задана у 1 из 3
+  - button "Скопировать из…":
+    - img
+    - text: ""
+  - text: Работа Норм.ч. Цена Итого по прайсу Детали Замена масла и фильтра
+  - textbox "1"
+  - textbox "—"
+  - text: — базовая
+  - button "2":
+    - img
+    - text: ""
+  - text: Замена передних колодок
+  - textbox "—"
+  - textbox /\d+/: /\d+/
+  - text: /3 \d+ ₽ своя/
+  - button "1":
+    - img
+    - text: ""
+  - button "Вернуть базовую цену":
+    - img
+  - text: Компьютерная диагностика
+  - textbox "0.5"
+  - textbox "—"
+  - text: — базовая
+  - button "—":
+    - img
+    - text: ""

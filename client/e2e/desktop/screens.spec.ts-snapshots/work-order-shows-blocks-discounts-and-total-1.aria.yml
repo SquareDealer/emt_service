@@ -1,0 +1,147 @@
+- main:
+  - link "Доска":
+    - /url: /board
+    - img
+    - text: ""
+  - textbox "Заказ-наряд без названия": ТО и тормоза
+  - link "Васильев Андрей Сергеевич":
+    - /url: /clients/client-hero
+  - img
+  - text: /MINI Hatch R56 А\d+ВС\d+/
+  - combobox "Статус":
+    - option "Запланирована"
+    - option "В работе" [selected]
+    - option "Ожидание"
+    - option "Готова"
+  - button "Удалить наряд":
+    - img
+  - heading "Работы" [level=2]:
+    - img
+    - text: ""
+  - combobox "Добавить из шаблона":
+    - option "+ Из прайса…" [selected]
+    - option "Замена масла и фильтра"
+    - option "Замена передних колодок"
+    - option "Компьютерная диагностика"
+  - text: /Операция Часы Ставка Цена Скидка Сумма Замена масла и фильтра 8 \d+ ₽/
+  - button "Выше":
+    - img
+  - button "Ниже":
+    - img
+  - button "Переименовать блок":
+    - img
+  - button "Разгруппировать":
+    - img
+  - text: /Замена масла и фильтра 1 3 \d+ ₽ — −\d+ ₽ \(\d+%\) 2 \d+ ₽/
+  - button "Изменить":
+    - img
+  - button "Удалить":
+    - img
+  - text: /Передние тормоза 8 \d+ ₽/
+  - button "Выше":
+    - img
+  - button "Ниже":
+    - img
+  - button "Переименовать блок":
+    - img
+  - button "Разгруппировать":
+    - img
+  - text: /Замена передних колодок — 3 \d+ ₽ 2 \d+ ₽ — 2 \d+ ₽/
+  - button "Изменить":
+    - img
+  - button "Удалить":
+    - img
+  - textbox "Напр. Замена масла"
+  - textbox "ч"
+  - textbox "ставка": /\d+/
+  - textbox "фикс."
+  - textbox "скидка"
+  - combobox "Тип скидки":
+    - option "%" [selected]
+    - option "₽"
+  - button "Добавить работу" [disabled]:
+    - img
+  - heading "Запчасти" [level=2]:
+    - img
+    - text: ""
+  - text: /Деталь Кол-во Цена Скидка Сумма Замена масла и фильтра 8 \d+ ₽ Масло моторное 5W-\d+ · Castrol · EDGE-5W30 4 л 1 \d+ ₽ — 5 \d+ ₽/
+  - button "Изменить":
+    - img
+  - button "Удалить":
+    - img
+  - text: /Фильтр масляный · Mann · HU \d+ z 1 шт \d+ ₽ — \d+ ₽/
+  - button "Изменить":
+    - img
+  - button "Удалить":
+    - img
+  - text: /Передние тормоза 8 \d+ ₽ Колодки тормозные передние · Brembo · P \d+ \d+ 1 шт 5 \d+ ₽ — 5 \d+ ₽/
+  - button "Изменить":
+    - img
+  - button "Удалить":
+    - img
+  - textbox "Напр. Масляный фильтр"
+  - textbox "Производитель"
+  - textbox "Артикул"
+  - textbox "кол-во": "1"
+  - combobox "Единица":
+    - option "шт" [selected]
+    - option "л"
+  - textbox "цена"
+  - textbox "скидка"
+  - combobox "Тип скидки":
+    - option "%" [selected]
+    - option "₽"
+  - button "Добавить запчасть" [disabled]:
+    - img
+  - heading "Причина обращения" [level=2]:
+    - img
+    - text: ""
+  - textbox "Жалоба клиента, с чем приехал…": Скрип при торможении, пора менять масло
+  - heading "Рекомендации клиенту" [level=2]:
+    - img
+    - text: ""
+  - textbox "Что советуем сделать в следующий раз…": /Проверить задние колодки через \d+ \d+ км/
+  - heading "Заметки" [level=2]:
+    - img
+    - text: ""
+  - textbox "Комментарий по работе, договорённости с клиентом, что проверить…"
+  - complementary:
+    - img
+    - text: Мастер
+    - combobox "Закреплённый мастер":
+      - option "— не назначен —"
+      - option "Ринат Хаматов"
+      - option "Тимур Газизов" [selected]
+      - option "Алсу Миннуллина"
+    - img
+    - text: Запись
+    - textbox: /\d+-\d+-18T09:\d+/
+    - text: Длительность, мин
+    - textbox /\d+/: /\d+/
+    - button "Слот":
+      - img
+      - text: ""
+    - button /Подогнать под часы работ \(\d+ мин\)/:
+      - img
+      - text: ""
+    - text: /Работы \+ запчасти \d+ \d+ ₽ Скидка на наряд/
+    - combobox:
+      - option "нет"
+      - option "%" [selected]
+      - option "₽"
+    - textbox: "5"
+    - text: /Скидки по строкам −\d+ ₽ Скидка наряда −\d+,\d+ ₽ Итого \d+ \d+,\d+ ₽ Оплачено/
+    - textbox "0"
+    - text: /Остаток \d+ \d+,\d+ ₽/
+    - button "Сохранить":
+      - img
+      - text: ""
+    - button "Закрыть и зафиксировать":
+      - img
+      - text: ""
+    - button "Копировать наряд":
+      - img
+      - text: ""
+    - button "Заказ-наряд (PDF)":
+      - img
+      - text: ""

@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import {
@@ -11,6 +12,7 @@ import {
 } from '../lib/schedule';
 import { assignLanes } from '../lib/schedule';
 import type { TimelineCfg, TimelineEvent } from '../lib/schedule';
+import { useNow } from '../lib/now';
 import './schedule.css';
 
 export const SELECTION_ID = '__selection__';
@@ -55,6 +57,14 @@ export interface ScheduleTimelineProps {
    * dragging — a press that travels ≤3px is treated as a click instead.
    */
   onEmptyClick?: (startISO: string, durationMin: number) => void;
+  /** Demo: render this event as if it were being dragged (same as an internal preview). */
+  forcePreview?: { id: string; startMin: number; durMin: number } | null;
+  /** Demo: mark one event with data-highlight. */
+  highlightId?: string;
+  /** Demo: mark one event with data-hover (twin of :hover). */
+  hoverId?: string;
+  /** Demo: extra style per real event (never the selection), merged into its element style. */
+  eventStyle?: (id: string) => CSSProperties | undefined;
 }
 
 interface DragSession {
@@ -79,7 +89,7 @@ export function ScheduleTimeline({
   days,
   events,
   cfg,
-  now = new Date(),
+  now: nowProp,
   orientation = 'vertical',
   interactive = false,
   selectable = false,
@@ -91,11 +101,18 @@ export function ScheduleTimeline({
   onEventResize,
   onSelect,
   onEmptyClick,
+  forcePreview,
+  highlightId,
+  hoverId,
+  eventStyle,
 }: ScheduleTimelineProps) {
+  const ctxNow = useNow();
+  const now = nowProp ?? ctxNow;
   const horizontal = orientation === 'horizontal';
   const dragRef = useRef<DragSession | null>(null);
   const previewRef = useRef<Preview | null>(null);
-  const [preview, setPreview] = useState<Preview | null>(null);
+  const [internalPreview, setPreview] = useState<Preview | null>(null);
+  const preview = internalPreview ?? forcePreview ?? null;
 
   // Measure the scroll viewport so the horizontal timeline can stretch the time
   // axis to fill the full width instead of using a fixed px-per-minute.
@@ -357,9 +374,13 @@ export function ScheduleTimeline({
         data-kind={ev.kind === 'block' ? 'block' : undefined}
         data-sel={isSel || undefined}
         data-drag={dragging || undefined}
+        data-highlight={ev.id === highlightId ? '' : undefined}
+        data-hover={ev.id === hoverId ? '' : undefined}
+        data-demo={isSel ? undefined : 'timeline-event'}
+        data-id={ev.id}
         role={clickable || draggable ? 'button' : undefined}
         tabIndex={clickable ? 0 : undefined}
-        style={style}
+        style={isSel ? style : { ...style, ...eventStyle?.(ev.id) }}
         onPointerDown={draggable ? (e) => onBlockDown(e, ev, dayIndex, 'move') : undefined}
         onPointerMove={draggable ? onPtrMove : undefined}
         onPointerUp={draggable ? onPtrUp : undefined}
@@ -396,7 +417,7 @@ export function ScheduleTimeline({
   // ----- Horizontal layout: time across the top, days as rows -----
   if (horizontal) {
     return (
-      <div className="stl" data-orient="h">
+      <div className="stl" data-orient="h" data-demo="timeline">
         <div className={scrollClass} ref={scrollRef} {...panProps}>
           <div
             className="stl-grid"
@@ -455,7 +476,7 @@ export function ScheduleTimeline({
 
   // ----- Vertical layout (default): time down the page, days as columns -----
   return (
-    <div className="stl">
+    <div className="stl" data-demo="timeline">
       <div className={scrollClass} ref={scrollRef} {...panProps}>
         <div
           className="stl-grid"

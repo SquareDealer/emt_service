@@ -26,7 +26,7 @@
 }
 .pl-row + .pl-row,
 .pl-head + .pl-row { border-top: 1px solid var(--border); }
-.pl-row:hover { background: var(--surface-2); }
+.pl-row:hover, .pl-row[data-hover] { background: var(--surface-2); }
 
 /* An inherited figure reads as "not set here" without needing a second column. */
 .pl-row [data-inherited] { color: var(--muted); }

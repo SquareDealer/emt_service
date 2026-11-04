@@ -144,15 +144,42 @@ API (всё под JWT кроме `/health`, `/auth/login`):
 ```
 lib/      api.ts (fetch+JWT), auth.tsx, roles.ts, intake.tsx (IntakeContext — открыть приём со слотом),
           types.ts, schedule.ts (геометрия таймлайна, dayRangeIso, blockToEvent, parseEventId),
-          format.ts (зеркало PricingService + vehicleLabel + estimateGroups), toast.tsx, theme.ts
-components/ AppShell (nav скрывает «Настройки»/«Прайс-лист» у master, «Импорт» у не-owner),
-          GlobalSearch (⌘K), IntakeModal, VehicleFields (общие поля ТС), ScheduleTimeline, ui.tsx
-features/ auth/ clients/ board/ archive/ import/ settings/
-          calendar/  CalendarPage + SlotMenu (запись/резерв) + BlockModal
-          price-list/ PriceListPage + PartsCatalog + TemplatePartsModal
-          work-orders/ WorkOrderPage + ApplyTemplateModal + DuplicateModal
+          format.ts (зеркало PricingService + vehicleLabel + estimateGroups), toast.tsx, theme.ts,
+          view-helpers.ts (чистые хелперы для View), now.tsx (NowProvider/useNow — «сейчас» из контекста),
+          brand.ts (Brand, DEFAULT_BRAND — название/лого для демо)
+components/ AppShell (контейнер) + AppShellView, GlobalSearch (⌘K) + SearchPaletteView, ToastView,
+          IntakeModal, VehicleFields (общие поля ТС), ScheduleTimeline, ui.tsx
+          (AppShell: nav скрывает «Настройки»/«Прайс-лист» у master, «Импорт» у не-owner)
+features/ auth/ archive/ import/ settings/
+          clients/ ClientCardPage + ClientCardView
+          board/ BoardPage + BoardView (+BoardCard)
+          calendar/  CalendarPage + CalendarView + SlotMenu (запись/резерв) + BlockModal
+          price-list/ PriceListPage + PriceListView + PartsCatalog + TemplatePartsModal
+          work-orders/ WorkOrderPage + WorkOrderView + ScheduleFields (+SlotPickerView) +
+                       ApplyTemplateModal + ApplyTemplateView + DuplicateModal
 index.css дизайн-токены (OKLCH, light/dark via [data-theme]), компонентные классы
 ```
+
+**Чистые view (`*View.tsx`)** — рефакторинг без изменения поведения, чтобы экраны можно было
+рендерить в Remotion-видео из фиксированных пропсов:
+- Страница (`*Page.tsx`) — **контейнер**: запросы, мутации, навигация, toast, auth. View — только
+  `props → JSX`; CSS фичи импортируется во view (контейнер получает стили транзитивно).
+- View **не импортирует** `lib/api`, `lib/auth`, `lib/query`, `lib/toast`, `@tanstack/react-query`
+  (проверяется ESLint по прямым импортам); время — через `useNow()`, бренд — через проп `brand`. ESLint-override
+  проверяет прямые импорты во view и в их общих модулях: `src/**/*View.tsx`,
+  `features/work-orders/ScheduleFields.tsx`, `components/ui.tsx`, `components/ScheduleTimeline.tsx`,
+  `features/calendar/SlotMenu.tsx`, `lib/{view-helpers,now,format,schedule,brand}` (транзитивно не
+  проверяется). `ScheduleTimeline` и `Modal` из `ui.tsx` — чистые, их View использует.
+- Демо-пропсы по умолчанию **без эффекта**: `highlight*` → `data-highlight`, `hover*` → `data-hover`
+  (CSS-близнецы `[data-hover]` рядом с `:hover`), `forcePreview`, `rowStyle`, `overStatus`/`ghostId`
+  (состояние drag), `inline` (Modal рисуется на месте без `showModal()`), `brand`; черновики форм —
+  `laborDraft`/`partDraft`/`discountDraft` на WorkOrderView (в формы как `draft`, значение `draft?.x ?? state`); `eventStyle` на CalendarView/ScheduleTimeline (стиль события по id, как `rowStyle`). Для скриптов видео на узлах стоят `data-demo="…"`.
+- **Жизненный цикл остаётся в контейнере:** в `WorkOrderPage` — `keepRef`/`woRef`, unmount-cleanup
+  (авто-удаление пустого наряда), `refetchOnMount: 'always'`, `onMutate` в `mUpdate`; эффекты не
+  переносить (StrictMode). Неконтролируемые инпуты наряда (title без `key`, textarea с
+  `key=wo.id+value`, duration с `key`) переехали во view буквально — не «чинить».
+- Корневой `tsconfig.json` исключает `video`; `tsconfig.build.json` и `.dockerignore` исключают
+  `video` и `demo` (`demo` в корневом tsconfig не исключён намеренно — typecheck покрывает демо-сид).
 
 Дизайн: Linear-like (тихий/плотный/точный), стальной-синий primary + латунный accent.
 Полная спека — `DESIGN.md`. Навигация на наряд передаёт `state.back={to,label}`.
@@ -174,8 +201,9 @@ index.css дизайн-токены (OKLCH, light/dark via [data-theme]), ком
 
 ```bash
 npx tsc --noEmit && npm test && npm run lint -- --max-warnings=0 && npm run build   # backend, 160 тестов
-cd client && npm run typecheck && npm run lint && npm test && npm run build          # client, 28 тестов
-cd client && npx playwright test                                                     # 9 e2e
+cd client && npm run typecheck && npm run lint && npm test && npm run build          # client, 84 теста
+cd client && npx playwright test                                                     # 27 e2e (9 mobile/календарь + 18 desktop)
+# если Playwright не находит свой Chromium: PW_CHROMIUM_PATH=/path/to/chromium npx playwright test
 ```
 - **Конвенция:** чистые юниты с рукописными фейковыми репозиториями (`as never`), без
   `@nestjs/testing` и supertest. См. `users.service.spec.ts`.
@@ -192,6 +220,12 @@ cd client && npx playwright test                                                
   попадают — `tsconfig.build.json` исключает `**/*spec.ts`). `lib/schedule.spec.ts`.
 - Playwright (`client/e2e/`, все `/api/**` застабены): mobile-вёрстка + календарь
   (клик по пустому месту, протяжка панорамирует, вид резерва).
+- Desktop e2e (`client/e2e/desktop/`, `/api/**` застаблен в `stub.ts`, время зафиксировано
+  `2026-11-18T10:40:00+03:00`, `Europe/Moscow`, 1440×900): `screens.spec.ts` — aria-снапшоты
+  доски/наряда/календаря/прайса/карточки клиента/⌘K, `behavior.spec.ts` — поведение (уход с пустого
+  наряда, drag на доске, календарь, шаблон). Снапшоты — страховка рефакторинга View: **не обновлять**
+  `--update-snapshots`, изменение = регрессия кода. Есть guard на вложенный `.page .page`.
+  `lib/view-helpers.spec.ts` и `*.view.spec.tsx` — юниты View.
 - Acceptance AC-1..10 — в `checks.md`.
 - Backend tsconfig исключает `client/`.
 

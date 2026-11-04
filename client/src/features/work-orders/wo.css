@@ -48,9 +48,9 @@
   border-bottom: 1px solid var(--border);
 }
 .smeta-row { border-bottom: 1px solid var(--border); font-size: var(--text-sm); }
-.smeta-row:hover { background: var(--surface-2); }
+.smeta-row:hover, .smeta-row[data-hover] { background: var(--surface-2); }
 .smeta-row .del, .smeta-row .edit { opacity: 0; }
-.smeta-row:hover .del, .smeta-row:hover .edit { opacity: 1; }
+.smeta-row:hover .del, .smeta-row:hover .edit, .smeta-row[data-hover] .del, .smeta-row[data-hover] .edit { opacity: 1; }
 .row-actions { display: flex; gap: 2px; align-items: center; justify-self: end; }
 .smeta-empty { padding: var(--sp-4); color: var(--muted); font-size: var(--text-sm); text-align: center; }
 .ta-r { text-align: right; justify-self: end; }
