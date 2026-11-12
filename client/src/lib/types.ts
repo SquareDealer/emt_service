@@ -181,6 +181,8 @@ export interface PartTemplate {
   catalog_number: string | null;
   unit: PartUnit;
   default_price: number | null;
+  /** Закупка за единицу. Приходит только владельцу. */
+  purchase_price?: number | null;
   active: boolean;
 }
 
@@ -284,3 +286,119 @@ export const STATUS_LABEL: Record<WorkOrderStatus, string> = {
 
 /** How many closed orders the board's «Выдана» column shows. Mirrors the server. */
 export const BOARD_CLOSED_LIMIT = 10;
+
+// Аналитика владельца (`/analytics/*`). Поля — snake_case, как в ответе API.
+// margin и markup_pct — доли 0…1, null когда делить не на что.
+
+export interface AnalyticsTotals {
+  orders: number;
+  hours: number;
+  revenue: number;
+  labor: number;
+  parts_sale: number;
+  parts_cost: number;
+  markup: number;
+  unknown_sale: number;
+  unknown_count: number;
+  discounts: number;
+  profit: number;
+  margin: number | null;
+  avg_check: number | null;
+}
+
+export interface AnalyticsBucket {
+  from: string;
+  to: string;
+  orders: number;
+  labor: number;
+  markup: number;
+  cost: number;
+  unknown: number;
+  revenue: number;
+  profit: number;
+}
+
+export interface AnalyticsLaborRow {
+  key: string;
+  name: string;
+  count: number;
+  hours: number;
+  revenue: number;
+  per_hour: number | null;
+}
+
+export interface AnalyticsPartRow {
+  key: string;
+  name: string;
+  manufacturer: string | null;
+  unit: PartUnit;
+  qty: number;
+  revenue: number;
+  cost: number | null;
+  markup: number | null;
+  markup_pct: number | null;
+  unknown_count: number;
+}
+
+export interface AnalyticsVehicleRow {
+  key: string;
+  name: string;
+  orders: number;
+  revenue: number;
+  profit: number;
+  margin: number | null;
+  avg_check: number | null;
+  unknown_count: number;
+}
+
+export interface AnalyticsClientRow extends Omit<AnalyticsVehicleRow, 'key'> {
+  client_id: string;
+  vehicle: string;
+  last_closed_at: string;
+}
+
+export interface AnalyticsBreakdown {
+  labor: AnalyticsLaborRow[];
+  parts: AnalyticsPartRow[];
+  vehicles: AnalyticsVehicleRow[];
+  clients: AnalyticsClientRow[];
+}
+
+export interface AnalyticsSummary {
+  totals: AnalyticsTotals;
+  /** Период сравнения; null, если prev не передан. */
+  previous: AnalyticsTotals | null;
+  buckets: AnalyticsBucket[];
+  breakdown: AnalyticsBreakdown;
+}
+
+/** Запчасти закрытых нарядов без закупки — строки для дозаполнения. */
+export interface MissingCostRow {
+  part_line_id: string;
+  work_order_id: string;
+  doc_number: number | null;
+  closed_at: string;
+  vehicle: string;
+  client: string;
+  name: string;
+  manufacturer: string | null;
+  qty: number;
+  unit: PartUnit;
+  net: number;
+}
+
+/** Строка запчасти наряда с закупкой (только владельцу). */
+export interface PartCostRow {
+  part_line_id: string;
+  name: string;
+  manufacturer: string | null;
+  qty: number;
+  unit: PartUnit;
+  purchase_price: number | null;
+}
+
+/** Элемент PATCH /analytics/part-costs. null — очистить закупку. */
+export interface PartCostItem {
+  part_line_id: string;
+  purchase_price: number | null;
+}
