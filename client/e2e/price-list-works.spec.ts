@@ -262,6 +262,35 @@ test('search and «Со своей ценой» narrow the list', async ({ page 
   await expect(page.getByText('Замена колодок')).toHaveCount(0);
 });
 
+test('toolbar: filter on its own row at input height; copy is an icon next to «Добавить работу»', async ({ page }) => {
+  await stubApi(page);
+  await openWorks(page);
+  await chooseGeneration(page, /R56/);
+
+  const box = async (l: ReturnType<Page['locator']>) => (await l.boundingBox())!;
+  const gen = await box(picker(page));
+  const search = await box(page.locator('.pw-search'));
+  const seg = await box(page.getByRole('group', { name: 'Какие работы показывать' }));
+  const copy = page.getByRole('button', { name: /Скопировать из/ });
+  const copyBox = await box(copy);
+  const add = await box(page.getByRole('button', { name: 'Добавить работу' }));
+
+  // Row 1: generation, search, copy, add — one line.
+  for (const b of [search, copyBox, add]) expect(Math.abs(b.y - gen.y)).toBeLessThanOrEqual(1);
+  expect(copyBox.x).toBeGreaterThan(search.x + search.width);
+  expect(add.x).toBeGreaterThan(copyBox.x + copyBox.width - 1);
+
+  // «Скопировать из…» is icon-only, but still named for screen readers and hover.
+  expect((await copy.innerText()).trim()).toBe('');
+  await expect(copy).toHaveAttribute('title', /Скопировать/);
+  expect(Math.abs(copyBox.width - copyBox.height)).toBeLessThanOrEqual(1);
+
+  // Row 2: the price filter, under the picker, as tall as the inputs.
+  expect(seg.y).toBeGreaterThanOrEqual(gen.y + gen.height);
+  expect(Math.abs(seg.x - gen.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(seg.height - search.height)).toBeLessThanOrEqual(1);
+});
+
 test('master sees prices but no add / edit / remove / manage controls', async ({ page }) => {
   const api = await stubApi(page, master);
   // The nav hides the price list from a master — this is the direct link.
