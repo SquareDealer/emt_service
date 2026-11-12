@@ -4,6 +4,10 @@ import { Check, Pencil, Plus, Search, Trash2, Package, X } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import { money } from '../../lib/format';
+import { useAuth } from '../../lib/auth';
+import { canSeeAnalytics } from '../../lib/roles';
+import { partTemplateBody } from '../../lib/parts';
+import { parsePrice } from '../analytics/query';
 import { Spinner } from '../../components/ui';
 import type { PartTemplate, PartUnit } from '../../lib/types';
 
@@ -17,6 +21,8 @@ export function PartsCatalog() {
   const toast = useToast();
   const [q, setQ] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const owner = canSeeAnalytics(user?.role);
 
   const { data: parts, isLoading } = useQuery({
     queryKey: ['part-templates', q],
@@ -60,10 +66,11 @@ export function PartsCatalog() {
       </div>
 
       <div className="panel">
-        <div className="pl-head parts-grid">
+        <div className="pl-head parts-grid" data-cost={owner || undefined}>
           <span>Название</span>
           <span>Производитель</span>
           <span className="mono">Артикул</span>
+          {owner && <span className="ta-r">Закупка</span>}
           <span className="ta-r">Цена</span>
           <span />
         </div>
@@ -79,15 +86,21 @@ export function PartsCatalog() {
             <PartTemplateForm
               key={p.id}
               initial={p}
+              owner={owner}
               busy={mUpdate.isPending}
               onSubmit={(body) => mUpdate.mutate({ id: p.id, body })}
               onCancel={() => setEditingId(null)}
             />
           ) : (
-            <div key={p.id} className="pl-row parts-grid">
+            <div key={p.id} className="pl-row parts-grid" data-cost={owner || undefined}>
               <span className="truncate">{p.name}</span>
               <span className="truncate muted">{p.manufacturer || '—'}</span>
               <span className="mono faint truncate">{p.catalog_number || '—'}</span>
+              {owner && (
+                <span className="ta-r mono tnum">
+                  {p.purchase_price != null ? money(p.purchase_price) : '—'}
+                </span>
+              )}
               <span className="ta-r mono tnum">
                 {p.default_price != null ? money(p.default_price) : '—'}
               </span>
@@ -113,7 +126,7 @@ export function PartsCatalog() {
           ))
         )}
 
-        <PartTemplateForm busy={mCreate.isPending} onSubmit={(b) => mCreate.mutate(b)} />
+        <PartTemplateForm owner={owner} busy={mCreate.isPending} onSubmit={(b) => mCreate.mutate(b)} />
       </div>
 
       <p className="text-xs muted">
@@ -131,11 +144,13 @@ export function PartsCatalog() {
  */
 function PartTemplateForm({
   initial,
+  owner,
   busy,
   onSubmit,
   onCancel,
 }: {
   initial?: PartTemplate;
+  owner: boolean;
   busy: boolean;
   onSubmit: (b: Partial<PartTemplate>) => void;
   onCancel?: () => void;
@@ -145,6 +160,7 @@ function PartTemplateForm({
   const [brand, setBrand] = useState(initial?.manufacturer ?? '');
   const [cat, setCat] = useState(initial?.catalog_number ?? '');
   const [price, setPrice] = useState(initial?.default_price != null ? String(initial.default_price) : '');
+  const [purchase, setPurchase] = useState(initial?.purchase_price != null ? String(initial.purchase_price) : '');
   const [unit, setUnit] = useState<PartUnit>(initial?.unit ?? 'pcs');
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -152,17 +168,15 @@ function PartTemplateForm({
     if (editing) nameRef.current?.focus();
   }, [editing]);
 
+  const purchaseInvalid = owner && parsePrice(purchase).kind === 'invalid';
+
   const submit = () => {
-    if (!name.trim()) return;
-    onSubmit({
-      name: name.trim(),
-      manufacturer: brand.trim() || null,
-      catalog_number: cat.trim() || null,
-      unit,
-      // Cleared price → explicit null: «цена не задана», never 0.
-      default_price: price ? Number(price) : null,
-    });
-    if (!editing) { setName(''); setBrand(''); setCat(''); setPrice(''); setUnit('pcs'); }
+    if (!name.trim() || purchaseInvalid) return;
+    onSubmit(partTemplateBody(
+      { name, manufacturer: brand, catalog_number: cat, unit, price, purchase },
+      { owner, initial },
+    ));
+    if (!editing) { setName(''); setBrand(''); setCat(''); setPrice(''); setPurchase(''); setUnit('pcs'); }
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -171,7 +185,7 @@ function PartTemplateForm({
   };
 
   return (
-    <div className="pl-row parts-grid" data-editing={editing || undefined} onKeyDown={onKeyDown}>
+    <div className="pl-row parts-grid" data-cost={owner || undefined} data-editing={editing || undefined} onKeyDown={onKeyDown}>
       <input
         ref={nameRef}
         className="cell-input"
@@ -191,6 +205,17 @@ function PartTemplateForm({
         placeholder="W712/95"
         onChange={(e) => setCat(e.target.value)}
       />
+      {owner && (
+        <input
+          className="cell-input ta-r tnum"
+          value={purchase}
+          placeholder="закупка"
+          inputMode="decimal"
+          aria-label="Закупка за единицу"
+          aria-invalid={purchaseInvalid || undefined}
+          onChange={(e) => setPurchase(e.target.value)}
+        />
+      )}
       <div className="qty-cell">
         <input
           className="cell-input ta-r tnum"
@@ -218,7 +243,7 @@ function PartTemplateForm({
         <button
           className="btn btn-default btn-icon btn-sm"
           onClick={submit}
-          disabled={!name.trim() || busy}
+          disabled={!name.trim() || purchaseInvalid || busy}
           aria-label={editing ? 'Сохранить' : 'Добавить в каталог'}
           title={editing ? 'Сохранить' : 'Добавить в каталог'}
         >
