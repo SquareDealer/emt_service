@@ -9,7 +9,14 @@
 
 .pl-grid { grid-template-columns: minmax(0, 1fr) 88px 104px 140px 72px 44px; }
 .tp-grid { grid-template-columns: minmax(0, 1fr) 180px 72px 96px 44px; }
-.parts-grid { grid-template-columns: minmax(0, 1fr) 140px 140px 128px 44px; }
+.parts-grid { grid-template-columns: minmax(0, 1fr) 140px 140px 128px 76px; }
+
+/* Section heading above a panel inside the «запчасти работы» modal. */
+.tp-title { padding: var(--sp-2) var(--sp-1) var(--sp-1); }
+
+/* A catalog row being edited in place. */
+.pl-row[data-editing] { background: var(--surface-2); }
+.pl-row .row-actions { display: flex; justify-content: flex-end; gap: 2px; }
 
 .pl-head,
 .pl-row {

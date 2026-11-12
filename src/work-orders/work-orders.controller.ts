@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -10,7 +11,7 @@ import {
   Query,
   StreamableFile,
 } from '@nestjs/common';
-import { IsIn, IsObject, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { IsIn, IsObject, IsOptional, IsString, IsUUID, MinLength, isUUID } from 'class-validator';
 import { ArchiveSort, WorkOrdersService } from './work-orders.service';
 import { WorkOrderLinesService } from './work-order-lines.service';
 import { CurrentUser, CurrentUserData } from '../auth/current-user.decorator';
@@ -37,6 +38,22 @@ class ApplyTemplateBodyDto {
   @IsOptional()
   @IsObject()
   qty?: Record<string, number>;
+
+  /** Absent → the car's generation; null → base prices; uuid → that generation. */
+  @IsOptional()
+  @IsUUID()
+  generation_id?: string | null;
+}
+
+/**
+ * `?generation_id=` of template-preview: absent → undefined (the car's own),
+ * the literal `base` → null (shared base prices), a uuid → that generation.
+ */
+function parseGenerationParam(raw: string | undefined): string | null | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === 'base') return null;
+  if (isUUID(raw)) return raw;
+  throw new BadRequestException('generation_id: ожидается uuid или base');
 }
 
 class DuplicateWorkOrderDto {
@@ -203,9 +220,10 @@ export class WorkOrdersController {
   previewTemplate(
     @Param('id', ParseUUIDPipe) id: string,
     @Query('template_id', ParseUUIDPipe) templateId: string,
+    @Query('generation_id') generationId: string | undefined,
     @CurrentUser() user: CurrentUserData,
   ) {
-    return this.lines.previewTemplate(id, templateId, user);
+    return this.lines.previewTemplate(id, templateId, user, parseGenerationParam(generationId));
   }
 
   /** Insert the work and the chosen parts as one block. */

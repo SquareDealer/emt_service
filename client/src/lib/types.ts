@@ -27,6 +27,9 @@ export interface Client {
   discount_default_pct: number | null;
   imported_deals_count: number;
   imported_deals_sum: number;
+  /** Orders closed in this CRM — live, on top of the imported history. */
+  closed_orders_count: number;
+  closed_orders_sum: number;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -278,3 +281,6 @@ export const STATUS_LABEL: Record<WorkOrderStatus, string> = {
   done: 'Готова',
   closed: 'Выдана',
 };
+
+/** How many closed orders the board's «Выдана» column shows. Mirrors the server. */
+export const BOARD_CLOSED_LIMIT = 10;

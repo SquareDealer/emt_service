@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Users, Search, Plus, ChevronRight } from 'lucide-react';
 import { api } from '../../lib/api';
-import { phone as fmtPhone, dateShort, money, sourceLabel } from '../../lib/format';
+import { phone as fmtPhone, dateShort, money, sourceLabel, clientDeals } from '../../lib/format';
 import { Avatar, EmptyState, ListSkeleton } from '../../components/ui';
 import { ClientFormModal } from './ClientFormModal';
 import type { ClientSource } from '../../lib/types';
@@ -41,7 +41,7 @@ export function ClientsPage() {
     return [...list].sort((a, b) => {
       if (sort === 'deals_desc') {
         return (
-          b.imported_deals_count - a.imported_deals_count ||
+          clientDeals(b).count - clientDeals(a).count ||
           ts(b.created_at) - ts(a.created_at)
         );
       }
@@ -94,7 +94,7 @@ export function ClientsPage() {
         >
           <option value="created_desc">Сначала новые</option>
           <option value="created_asc">Сначала старые</option>
-          <option value="deals_desc">Больше сделок (история)</option>
+          <option value="deals_desc">Больше сделок</option>
         </select>
       </div>
 
@@ -145,9 +145,9 @@ export function ClientsPage() {
                   <span className="badge">{sourceLabel(c.source)}</span>
                 </span>
                 <span className="col-deals tnum text-sm">
-                  {c.imported_deals_count > 0 ? (
-                    <span title="Закрытых сделок / сумма (из старой базы)">
-                      {c.imported_deals_count} · {money(c.imported_deals_sum)}
+                  {clientDeals(c).count > 0 ? (
+                    <span title="Закрытых сделок / сумма (CRM + старая база)">
+                      {clientDeals(c).count} · {money(clientDeals(c).sum)}
                     </span>
                   ) : (
                     <span className="faint">—</span>

@@ -20,6 +20,7 @@ import {
   money,
   sourceLabel,
   vehicleLabel,
+  clientDeals,
 } from '../../lib/format';
 import { Avatar, EmptyState, Modal, Spinner, StatusPill } from '../../components/ui';
 import { ClientFormModal } from './ClientFormModal';
@@ -93,6 +94,8 @@ export function ClientCardPage() {
     );
   }
 
+  const deals = clientDeals(client);
+
   return (
     <div className="page">
       <Link to="/clients" className="back-link"><ArrowLeft size={15} /> Клиенты</Link>
@@ -124,18 +127,18 @@ export function ClientCardPage() {
         </div>
       </header>
 
-      {(client.imported_deals_count > 0 || client.notes) && (
+      {(deals.count > 0 || client.notes) && (
         <div className="client-meta">
-          {client.imported_deals_count > 0 && (
+          {deals.count > 0 && (
             <div className="meta-stat">
-              <span className="meta-val tnum">{client.imported_deals_count}</span>
-              <span className="meta-label">закрытых сделок (история)</span>
+              <span className="meta-val tnum">{deals.count}</span>
+              <span className="meta-label">закрытых сделок</span>
             </div>
           )}
-          {client.imported_deals_count > 0 && (
+          {deals.count > 0 && (
             <div className="meta-stat">
-              <span className="meta-val tnum">{money(client.imported_deals_sum)}</span>
-              <span className="meta-label">выручка (история)</span>
+              <span className="meta-val tnum">{money(deals.sum)}</span>
+              <span className="meta-label">выручка</span>
             </div>
           )}
           {client.notes && (
