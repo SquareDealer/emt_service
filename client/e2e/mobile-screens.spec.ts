@@ -32,8 +32,47 @@ const workOrder = {
   }],
 };
 
+const totals = {
+  orders: 17, hours: 30, revenue: 382250, labor: 150000, parts_sale: 232250, parts_cost: 140000,
+  markup: 92250, unknown_sale: 75000, unknown_count: 6, discounts: 5000, profit: 166779,
+  margin: 0.436, avg_check: 22485,
+};
+
+/** `/api/analytics/**` in the server's shapes: the screen and the order's cost panel read real data. */
+async function stubAnalytics(page: Page) {
+  await page.route('**/api/analytics/**', (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/analytics/summary')) {
+      const edges = url.searchParams.get('edges')!.split(',');
+      const buckets = edges.slice(0, -1).map((from, i) => ({
+        from, to: edges[i + 1], orders: 0, labor: 0, markup: 0, cost: 0, unknown: 0, revenue: 0, profit: 0,
+      }));
+      return route.fulfill(json({
+        totals, previous: totals, buckets,
+        breakdown: { labor: [], parts: [], vehicles: [], clients: [] },
+      }));
+    }
+    if (url.pathname.endsWith('/analytics/missing-costs')) {
+      return route.fulfill(json([{
+        part_line_id: 'pl1', work_order_id: 'wo1', doc_number: 41,
+        closed_at: '2026-11-03T10:00:00.000Z', vehicle: 'MINI Cooper', client: 'Тихонов Д. И.',
+        name: 'Колодки тормозные передние керамические с датчиком износа', manufacturer: 'TRW',
+        qty: 1, unit: 'pcs', net: 7400,
+      }]));
+    }
+    if (url.pathname.includes('/analytics/part-costs/')) {
+      return route.fulfill(json(workOrder.part_lines.map((l) => ({
+        part_line_id: l.id, name: l.name, manufacturer: l.manufacturer, qty: l.qty, unit: l.unit,
+        purchase_price: null,
+      }))));
+    }
+    return route.fulfill(json({}));
+  });
+}
+
 async function stub(page: Page) {
   await page.route('**/api/**', (route) => route.fulfill(json({})));
+  await stubAnalytics(page);
   await page.route('**/api/auth/me', (route) => route.fulfill(json(user)));
   await page.route('**/api/clients', (route) => route.fulfill(json([])));
   await page.route('**/api/users', (route) => route.fulfill(json([])));

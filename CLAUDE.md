@@ -220,7 +220,7 @@ index.css дизайн-токены (OKLCH, light/dark via [data-theme]), ком
 ```bash
 npx tsc --noEmit && npm test && npm run lint -- --max-warnings=0 && npm run build   # backend, 288 тестов
 cd client && npm run typecheck && npm run lint && npm test && npm run build          # client, 115 тестов
-cd client && npx playwright test                                                     # 57 e2e
+cd client && npx playwright test                                                     # 65 e2e
 ```
 - **Конвенция:** чистые юниты с рукописными фейковыми репозиториями (`as never`), без
   `@nestjs/testing` и supertest. См. `users.service.spec.ts`.
@@ -242,7 +242,7 @@ cd client && npx playwright test                                                
 - Client (vitest) — 115 в 10 наборах: `lib/format` (20), `lib/parts` (18), `lib/schedule` (12),
   `lib/generations` (8), `lib/roles` (2), `lib/price` (15), `analytics/query` (10), `analytics/view` (11), `analytics/analytics` (7),
   `work-orders/part-costs` (12).
-- Playwright (`client/e2e/`, все `/api/**` застабены, 57 тестов): mobile-вёрстка + календарь
+- Playwright (`client/e2e/`, все `/api/**` застабены, 65 тестов): mobile-вёрстка + календарь
   (клик по пустому месту, протяжка панорамирует, вид резерва), экран аналитики (контракт запроса, пустой период,
   ошибка/повтор и несовпадение корзин, дозаполнение закупки, редирект не-владельца), колонка «Закупка» каталога
   запчастей и панель «Закупка» в наряде (PATCH-контракт, у не-владельца панели и запросов нет).
