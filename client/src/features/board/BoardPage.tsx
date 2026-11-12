@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   useDraggable,
@@ -17,8 +18,8 @@ import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import { useAuth } from '../../lib/auth';
 import { canAssignMaster } from '../../lib/roles';
-import { money, timeOnly, dateShort, vehicleLabel } from '../../lib/format';
-import { STATUS_LABEL, STATUS_ORDER } from '../../lib/types';
+import { money, timeOnly, dateShort, vehicleLabel, capClosed } from '../../lib/format';
+import { BOARD_CLOSED_LIMIT, STATUS_LABEL, STATUS_ORDER } from '../../lib/types';
 import type { WorkOrder, WorkOrderStatus } from '../../lib/types';
 import { Spinner } from '../../components/ui';
 import './board.css';
@@ -47,6 +48,8 @@ export function BoardPage() {
       qc.invalidateQueries({ queryKey: ['board'] });
       qc.invalidateQueries({ queryKey: ['work-orders'] });
       qc.invalidateQueries({ queryKey: ['work-order'] }); // detail page, if open
+      qc.invalidateQueries({ queryKey: ['clients'] }); // deal history counts closed orders
+      qc.invalidateQueries({ queryKey: ['client'] });
     },
     onError: (e) => {
       toast((e as Error).message, 'error');
@@ -54,16 +57,24 @@ export function BoardPage() {
     },
   });
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  // Mouse: drag after 5px, so a plain click still opens the order. Finger: drag
+  // only after a press-and-hold — otherwise every swipe across a card (and the
+  // cards fill the board) grabbed it instead of scrolling.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  );
 
   // Grab-pan the board horizontally by dragging empty background. Cards keep their
-  // own dnd-kit drag (PointerSensor), so we bail out when the press lands on a card.
+  // own dnd-kit drag, so we bail out when the press lands on a card. Touch scrolls
+  // natively — the overflow container already does that.
   const boardRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<{ startX: number; startScroll: number } | null>(null);
 
   const onBoardPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
-    if ((e.target as HTMLElement).closest('.board-card-drag')) return; // let dnd-kit handle cards
+    if (e.button !== 0 || e.pointerType !== 'mouse') return;
+    // Let dnd-kit handle cards, and let links stay links (capture would eat the click).
+    if ((e.target as HTMLElement).closest('.board-card-drag, a')) return;
     const el = boardRef.current;
     if (!el) return;
     panRef.current = { startX: e.clientX, startScroll: el.scrollLeft };
@@ -115,7 +126,8 @@ export function BoardPage() {
     setCols((c) => ({
       ...c,
       [from]: c[from].filter((w) => w.id !== id),
-      [over]: [moved, ...c[over]],
+      // A freshly issued order pushes the oldest card off «Выдана» — it stays in the archive.
+      [over]: over === 'closed' ? capClosed([moved, ...c[over]]) : [moved, ...c[over]],
     }));
     mStatus.mutate({ id, status: over });
   };
@@ -163,6 +175,11 @@ function Column({ status, items, showMaster, onOpen }: { status: WorkOrderStatus
         <span className="board-col-title">{STATUS_LABEL[status]}</span>
         <span className="board-count">{items.length}</span>
       </div>
+      {status === 'closed' && (
+        <div className="board-col-note">
+          последние {BOARD_CLOSED_LIMIT} · все — в <Link to="/archive">Архиве</Link>
+        </div>
+      )}
       <div ref={setNodeRef} className={`board-col-body ${isOver ? 'over' : ''}`}>
         {items.map((w) => (
           <DraggableCard key={w.id} wo={w} showMaster={showMaster} onOpen={onOpen} />
@@ -175,7 +192,7 @@ function Column({ status, items, showMaster, onOpen }: { status: WorkOrderStatus
 
 function DraggableCard({ wo, showMaster, onOpen }: { wo: WorkOrder; showMaster: boolean; onOpen: (id: string) => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: wo.id });
-  // Listeners on the whole card -> drag from anywhere. PointerSensor's 5px
+  // Listeners on the whole card -> drag from anywhere. The mouse sensor's 5px
   // activation distance lets a plain click (no movement) still open the order.
   return (
     <div

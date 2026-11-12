@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Search } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import { money } from '../../lib/format';
 import { Modal, Spinner } from '../../components/ui';
+import { PartPicker } from './PartPicker';
 import type { PartTemplate, TaskTemplatePart, VehicleGeneration } from '../../lib/types';
 
 /**
@@ -51,6 +52,17 @@ export function TemplatePartsModal({
 
   const universal = (links ?? []).filter((l) => !l.generation_id);
   const specific = (links ?? []).filter((l) => l.generation_id);
+  // What each section already holds — the picker hides these by default.
+  const universalIds = useMemo(
+    () => new Set((links ?? []).filter((l) => !l.generation_id).map((l) => l.part_template_id)),
+    [links],
+  );
+  const generationIds = useMemo(
+    () => new Set(
+      (links ?? []).filter((l) => generation && l.generation_id === generation.id).map((l) => l.part_template_id),
+    ),
+    [links, generation],
+  );
 
   const row = (l: TaskTemplatePart) => (
     <div key={l.id} className="pl-row tp-grid">
@@ -95,8 +107,8 @@ export function TemplatePartsModal({
           </p>
 
           <section className="col gap-1">
-            <h3 className="text-sm fw-500">Для всех поколений</h3>
-            <div className="panel">
+            <h3 className="text-sm fw-500 tp-title">Для всех поколений</h3>
+            <div className="panel pl-table">
               <div className="pl-head tp-grid">
                 <span>Запчасть</span>
                 <span>Роль в работе</span>
@@ -112,6 +124,7 @@ export function TemplatePartsModal({
               <AttachForm
                 templateId={templateId!}
                 generationId={null}
+                attachedIds={universalIds}
                 onDone={refresh}
               />
             </div>
@@ -119,10 +132,10 @@ export function TemplatePartsModal({
 
           {generation && (
             <section className="col gap-1">
-              <h3 className="text-sm fw-500">
+              <h3 className="text-sm fw-500 tp-title">
                 Только для {generation.make} {[generation.model, generation.code].filter(Boolean).join(' ')}
               </h3>
-              <div className="panel">
+              <div className="panel pl-table">
                 <div className="pl-head tp-grid">
                   <span>Запчасть</span>
                   <span>Роль в работе</span>
@@ -138,6 +151,7 @@ export function TemplatePartsModal({
                 <AttachForm
                   templateId={templateId!}
                   generationId={generation.id}
+                  attachedIds={generationIds}
                   onDone={refresh}
                 />
               </div>
@@ -160,25 +174,20 @@ export function TemplatePartsModal({
 function AttachForm({
   templateId,
   generationId,
+  attachedIds,
   onDone,
 }: {
   templateId: string;
   generationId: string | null;
+  /** Parts already attached in this section. */
+  attachedIds: ReadonlySet<string>;
   onDone: () => void;
 }) {
   const toast = useToast();
-  const [q, setQ] = useState('');
   const [picked, setPicked] = useState<PartTemplate | null>(null);
   const [slot, setSlot] = useState('');
   const [qty, setQty] = useState('1');
-
-  const { data: found } = useQuery({
-    queryKey: ['part-templates', q],
-    queryFn: () => api.partTemplates(q.trim()),
-    enabled: q.trim().length >= 1 && !picked,
-  });
-
-  useEffect(() => { if (picked) setQ(''); }, [picked]);
+  const slotRef = useRef<HTMLInputElement>(null);
 
   const mAttach = useMutation({
     mutationFn: () =>
@@ -195,66 +204,50 @@ function AttachForm({
     onError: (e) => toast((e as Error).message, 'error'),
   });
 
+  const canAttach = !!picked && !mAttach.isPending;
+  const submitOnEnter = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && canAttach) mAttach.mutate();
+  };
+
   return (
-    <div className="pl-row tp-grid" style={{ alignItems: 'start' }}>
-      <div className="col gap-1" style={{ minWidth: 0 }}>
-        {picked ? (
-          <button className="cell-input ta-l truncate" onClick={() => setPicked(null)} title="Выбрать другую">
-            {picked.name}{picked.manufacturer ? ` · ${picked.manufacturer}` : ''}
-          </button>
-        ) : (
-          <>
-            <div className="row gap-1">
-              <Search size={14} className="muted" style={{ alignSelf: 'center' }} />
-              <input
-                className="cell-input"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Найти в каталоге"
-              />
-            </div>
-            {q.trim() && (found ?? []).length > 0 && (
-              <div className="col" style={{ border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', maxHeight: 140, overflowY: 'auto' }}>
-                {(found ?? []).map((p) => (
-                  <button
-                    key={p.id}
-                    className="list-row"
-                    style={{ gridTemplateColumns: '1fr', borderRadius: 0, textAlign: 'left' }}
-                    onClick={() => setPicked(p)}
-                  >
-                    <span className="truncate">
-                      {p.name}
-                      <span className="faint"> · {[p.manufacturer, p.catalog_number].filter(Boolean).join(' · ') || '—'}</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {q.trim() && (found ?? []).length === 0 && (
-              <span className="text-xs muted">Ничего не найдено — добавьте деталь во вкладке «Запчасти».</span>
-            )}
-          </>
-        )}
-      </div>
+    <div className="pl-row tp-grid tp-attach">
+      <PartPicker
+        value={picked}
+        excludeIds={attachedIds}
+        onChange={(p) => {
+          setPicked(p);
+          // Part chosen → the next thing to type is its role.
+          if (p) slotRef.current?.focus();
+        }}
+      />
       <input
+        ref={slotRef}
         className="cell-input"
         value={slot}
         onChange={(e) => setSlot(e.target.value)}
+        onKeyDown={submitOnEnter}
         placeholder="напр. фильтр масляный"
+        aria-label="Роль в работе"
       />
       <input
         className="cell-input ta-r tnum"
         value={qty}
         onChange={(e) => setQty(e.target.value.replace(/[^\d.]/g, ''))}
+        onKeyDown={submitOnEnter}
         inputMode="decimal"
+        aria-label="Количество"
       />
-      <span />
+      <span className="tp-attach-price ta-r mono tnum muted">
+        {picked?.default_price != null ? money(picked.default_price) : ''}
+      </span>
       <span className="row-actions">
         <button
+          type="button"
           className="btn btn-default btn-icon btn-sm"
           onClick={() => mAttach.mutate()}
-          disabled={!picked || mAttach.isPending}
+          disabled={!canAttach}
           aria-label="Привязать запчасть"
+          title="Привязать к работе"
         >
           {mAttach.isPending ? <Spinner /> : <Plus size={15} />}
         </button>

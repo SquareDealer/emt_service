@@ -9,7 +9,14 @@
 
 .pl-grid { grid-template-columns: minmax(0, 1fr) 88px 104px 140px 72px 44px; }
 .tp-grid { grid-template-columns: minmax(0, 1fr) 180px 72px 96px 44px; }
-.parts-grid { grid-template-columns: minmax(0, 1fr) 140px 140px 128px 44px; }
+.parts-grid { grid-template-columns: minmax(0, 1fr) 140px 140px 128px 76px; }
+
+/* Section heading above a panel inside the «запчасти работы» modal. */
+.tp-title { padding: var(--sp-2) var(--sp-1) var(--sp-1); }
+
+/* A catalog row being edited in place. */
+.pl-row[data-editing] { background: var(--surface-2); }
+.pl-row .row-actions { display: flex; justify-content: flex-end; gap: 2px; }
 
 .pl-head,
 .pl-row {
@@ -39,9 +46,51 @@
   line-height: 1.2;
 }
 
-@media (max-width: 860px) {
-  .pl-grid,
-  .tp-grid,
-  .parts-grid { min-width: 660px; }
-  .panel { overflow-x: auto; }
+/* Captioned cell: transparent inside the table, a labelled field on a card. */
+.pl-cell { display: contents; }
+.pl-cell::before { display: none; }
+
+
+/* A narrow table becomes a list of cards, keyed to the panel's own width
+   (a 600px modal on a laptop is as narrow as a phone). The name leads, the
+   figure that matters sits beside it, the rest wraps underneath. */
+.pl-table { container: pl / inline-size; }
+@container pl (max-width: 600px) {
+  .pl-head { display: none; }
+  .pl-row {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: var(--sp-1) var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+  }
+  .pl-row > * { order: 3; min-width: 0; }
+  .pl-row > :first-child {
+    order: 0;
+    flex: 1 1 calc(100% - 8rem);
+    white-space: normal; overflow-wrap: anywhere;
+    font-weight: 500;
+  }
+  /* the headline figure: «Итого по прайсу», catalog price, link price */
+  .pl-row > :nth-child(4) { order: 1; flex: 0 0 auto; margin-left: auto; text-align: right; }
+  .pl-row > span:not(:first-child):not(:nth-child(4)):not(.row-actions):not(.pl-cell) {
+    font-size: var(--text-xs);
+  }
+  .pl-row > .row-actions,
+  .pl-row > .pw-row-actions { order: 4; margin-left: auto; }
+  .pl-row > input, .pl-row > .pl-cell { flex: 1 1 30%; }
+
+  /* price list: hours and price get their captions back */
+  .pl-cell { display: flex; flex-direction: column; gap: 2px; }
+  .pl-cell::before {
+    display: block; content: attr(data-label);
+    font-size: var(--text-xs); font-weight: 500; color: var(--muted);
+  }
+  .pl-cell > .ta-r { text-align: left; justify-self: auto; }
+
+  /* parts catalog add-row: name + price/unit on top, brand and article below */
+  .parts-grid > .qty-cell { flex: 0 0 8rem; }
+
+  /* link a part: the search takes the row, its empty figure column goes away */
+  .tp-attach > :first-child { flex-basis: 100%; }
+  .tp-attach > :nth-child(4) { display: none; }
+  .tp-grid > span:nth-child(3)::before { content: '× '; color: var(--faint); }
 }

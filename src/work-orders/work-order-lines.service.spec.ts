@@ -50,6 +50,8 @@ function harness(links: TaskTemplatePart[], vehicleGeneration: string | null = R
 
   let recomputes = 0;
   let transactions = 0;
+  /** Every generation the price was resolved for, in call order. */
+  const pricedFor: (string | null)[] = [];
 
   const core = {
     assertOpen: async () => order,
@@ -97,12 +99,15 @@ function harness(links: TaskTemplatePart[], vehicleGeneration: string | null = R
     { getLaborRate: async () => 2000 } as never,
     { findOne: async () => ({ id: 'tpl', name: 'Замена масла', default_hours: 1, default_price: 2500 }) } as never,
     {
-      resolveForLine: async (_t: string, _g: string | null, rate: number) => ({
-        hours: 1,
-        price_override: 2500,
-        rate_snapshot: rate,
-        source: 'generation' as const,
-      }),
+      resolveForLine: async (_t: string, g: string | null, rate: number) => {
+        pricedFor.push(g);
+        return {
+          hours: 1,
+          price_override: 2500,
+          rate_snapshot: rate,
+          source: 'generation' as const,
+        };
+      },
     } as never,
   );
 
@@ -110,6 +115,7 @@ function harness(links: TaskTemplatePart[], vehicleGeneration: string | null = R
     service,
     labor,
     parts,
+    pricedFor,
     counts: () => ({ recomputes, transactions }),
   };
 }
@@ -261,5 +267,61 @@ describe('applying a template', () => {
     expect(keys.size).toBe(2);
     // ...and the second block sorts after the first.
     expect(h.labor[1].group_sort).toBeGreaterThan(h.labor[0].group_sort);
+  });
+});
+
+describe('choosing the generation a template is priced for', () => {
+  const filter = partTemplate('filter', 'Фильтр MANN', 800);
+  const filterR56 = partTemplate('filter-r56', 'Фильтр MANN R56', 900);
+  const filterF56 = partTemplate('filter-f56', 'Фильтр MANN F56', 950);
+  const links = () => [
+    link({ part_template_id: 'filter', part_template: filter, slot: 'фильтр' }),
+    link({ part_template_id: 'filter-r56', part_template: filterR56, slot: 'фильтр', generation_id: 'g-car' }),
+    link({ part_template_id: 'filter-f56', part_template: filterF56, slot: 'фильтр', generation_id: 'g-other' }),
+  ];
+
+  it('prices by the car generation when none is passed', async () => {
+    const h = harness(links(), 'g-car');
+    const preview = await h.service.previewTemplate('wo1', 'tpl', owner);
+    expect(h.pricedFor).toEqual(['g-car']);
+    expect(preview.parts.map((p) => p.name)).toEqual(['Фильтр MANN R56']);
+  });
+
+  it('prices by an explicitly chosen generation', async () => {
+    const h = harness(links(), 'g-car');
+    const preview = await h.service.previewTemplate('wo1', 'tpl', owner, 'g-other');
+    expect(h.pricedFor).toEqual(['g-other']);
+    expect(preview.parts.map((p) => p.name)).toEqual(['Фильтр MANN F56']);
+    expect(preview.parts[0].generation_specific).toBe(true);
+  });
+
+  it('explicit null means base prices even for a car with a generation', async () => {
+    // «Базовые» picked on purpose must not be swapped back for the car's own.
+    const h = harness(links(), 'g-car');
+    const preview = await h.service.previewTemplate('wo1', 'tpl', owner, null);
+    expect(h.pricedFor).toEqual([null]);
+    expect(preview.parts.map((p) => p.name)).toEqual(['Фильтр MANN']);
+    expect(preview.parts.every((p) => p.generation_specific === false)).toBe(true);
+  });
+
+  it('applyTemplate forwards generation_id to the preview', async () => {
+    const h = harness(links(), 'g-car');
+    await h.service.applyTemplate('wo1', { template_id: 'tpl', generation_id: 'g-other' }, owner);
+    expect(h.pricedFor).toEqual(['g-other']);
+    expect(h.parts.map((p) => p.name)).toEqual(['Фильтр MANN F56']);
+  });
+
+  it('applyTemplate with generation_id null takes the base set', async () => {
+    const h = harness(links(), 'g-car');
+    await h.service.applyTemplate('wo1', { template_id: 'tpl', generation_id: null }, owner);
+    expect(h.pricedFor).toEqual([null]);
+    expect(h.parts.map((p) => p.name)).toEqual(['Фильтр MANN']);
+  });
+
+  it('a car without a generation defaults to base', async () => {
+    const h = harness(links(), null);
+    const preview = await h.service.previewTemplate('wo1', 'tpl', owner);
+    expect(h.pricedFor).toEqual([null]);
+    expect(preview.parts.map((p) => p.name)).toEqual(['Фильтр MANN']);
   });
 });

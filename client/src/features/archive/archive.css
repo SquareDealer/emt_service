@@ -35,3 +35,21 @@
   }
   .archive-row > :last-child { display: none; }
 }
+
+/* Phones: title and sum lead, the document number and close date sit under
+   them — the № column alone was a third of a 320px row. */
+@media (max-width: 560px) {
+  .list-head.archive-row { display: none; }
+  .list-row.archive-row {
+    grid-template-columns: auto minmax(0, 1fr) auto var(--touch-target);
+    grid-template-areas: 'title title total pdf' 'num closed closed pdf';
+    column-gap: var(--sp-2); row-gap: 2px;
+    padding-block: var(--sp-3);
+  }
+  .archive-row > :nth-child(2) { grid-area: title; }
+  .archive-row > :nth-child(2) > .fw-500 { white-space: normal; overflow-wrap: anywhere; }
+  .archive-row > .archive-total { grid-area: total; align-self: start; }
+  .archive-row > .archive-num { grid-area: num; }
+  .archive-row > .col-closed { display: block; grid-area: closed; font-size: var(--text-xs); }
+  .archive-row > .btn { grid-area: pdf; }
+}

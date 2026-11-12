@@ -17,12 +17,15 @@ import type { WorkOrder } from '../../lib/types';
 export function ApplyTemplateModal({
   workOrderId,
   templateId,
+  generationId,
   onClose,
   onApplied,
 }: {
   workOrderId: string;
   /** null = closed. */
   templateId: string | null;
+  /** Whose prices and parts to use, as chosen in the picker; null = base prices. */
+  generationId: string | null;
   onClose: () => void;
   onApplied: (wo: WorkOrder) => void;
 }) {
@@ -32,8 +35,10 @@ export function ApplyTemplateModal({
   const [qty, setQty] = useState<Record<string, string>>({});
 
   const { data: preview, isLoading } = useQuery({
-    queryKey: ['template-preview', workOrderId, templateId],
-    queryFn: () => api.templatePreview(workOrderId, templateId!),
+    // The generation is part of the key: the same work previewed for another
+    // generation is a different answer.
+    queryKey: ['template-preview', workOrderId, templateId, generationId],
+    queryFn: () => api.templatePreview(workOrderId, templateId!, generationId),
     enabled: !!templateId,
   });
 
@@ -72,6 +77,8 @@ export function ApplyTemplateModal({
             .filter(([id]) => picked.has(id))
             .map(([id, v]) => [id, Number(v) || 1]),
         ),
+        // Always explicit, so the server applies exactly what was previewed.
+        generation_id: generationId,
       }),
     onSuccess: (wo) => {
       qc.invalidateQueries({ queryKey: ['work-order', workOrderId] });
@@ -86,7 +93,9 @@ export function ApplyTemplateModal({
     preview?.price_source === 'generation'
       ? 'цена этого поколения'
       : preview?.price_source === 'template'
-        ? 'базовая цена — для этого поколения не задана'
+        ? generationId
+          ? 'базовая цена — для этого поколения не задана'
+          : 'базовая цена'
         : 'цена не задана, посчитается по ставке';
 
   return (

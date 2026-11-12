@@ -11,7 +11,16 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { IsBoolean, IsIn, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+  MinLength,
+} from 'class-validator';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { PriceListService } from './price-list.service';
@@ -54,6 +63,38 @@ class AttachPartDto {
   slot?: string | null;
 }
 
+class CreateWorkDto {
+  @IsString()
+  @MinLength(1)
+  name: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  default_hours?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  default_price?: number | null;
+
+  /** null/absent = only the shared base figures are stored. */
+  @IsOptional()
+  @IsUUID()
+  generation_id?: string | null;
+
+  /** This generation's own figures; both empty = no override is created. */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  hours?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  price?: number | null;
+}
+
 class CopyPricesDto {
   @IsUUID()
   from_generation_id: string;
@@ -79,6 +120,13 @@ export class PriceListController {
   @Get()
   list(@Query('generation_id') generationId?: string) {
     return this.priceList.list(generationId);
+  }
+
+  /** A new work, optionally with its price for one generation. */
+  @Post('works')
+  @Roles('owner', 'master_receptionist')
+  createWork(@Body() dto: CreateWorkDto) {
+    return this.priceList.createWork(dto);
   }
 
   @Put(':templateId/:generationId')
