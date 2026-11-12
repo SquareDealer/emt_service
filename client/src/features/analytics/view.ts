@@ -4,7 +4,7 @@
  */
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import type { AnalyticsBreakdown, AnalyticsBucket, PartUnit } from '../../lib/types';
+import type { AnalyticsBreakdown, AnalyticsBucket } from '../../lib/types';
 import type { Breakdown, BreakdownKind, Period } from './analytics';
 
 export interface ChartBucket {
@@ -40,9 +40,7 @@ export function bucketsView(p: Period, api: AnalyticsBucket[]): ChartBucket[] {
   });
 }
 
-export function unitLabel(u: PartUnit): 'шт' | 'л' {
-  return u === 'l' ? 'л' : 'шт';
-}
+export { unitLabel } from '../../lib/parts';
 
 const day = (iso: string) => format(new Date(iso), 'd MMM', { locale: ru });
 

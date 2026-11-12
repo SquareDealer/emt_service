@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Wallet } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import type { PartCostRow, PartLine } from '../../lib/types';
-import { rub, signedPct } from '../analytics/fmt';
-import { parsePrice } from '../analytics/query';
-import { unitLabel } from '../analytics/view';
+import { money } from '../../lib/format';
+import { signedPct } from '../analytics/fmt';
+import { parsePrice } from '../../lib/price';
+import { unitLabel } from '../../lib/parts';
 import { costRows, costTotals, linesSignature } from './part-costs';
 
 /**
@@ -24,6 +25,7 @@ export function PartCostsPanel({ workOrderId, lines }: { workOrderId: string; li
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey,
     queryFn: () => api.partCosts(workOrderId),
+    placeholderData: keepPreviousData,
   });
 
   const rows = costRows(lines, data ?? []);
@@ -114,7 +116,7 @@ export function PartCostsPanel({ workOrderId, lines }: { workOrderId: string; li
                     else if (e.key === 'Escape') dropDraft(r.id);
                   }}
                 />
-                <span className="mono tnum ta-r">{rub(r.cost)}</span>
+                <span className="mono tnum ta-r">{money(r.cost)}</span>
                 <span className="mono tnum ta-r pc-markup" data-neg={(r.markup ?? 0) < 0 || undefined}>
                   {r.markup_pct === null ? '—' : signedPct(r.markup_pct)}
                 </span>
@@ -123,10 +125,10 @@ export function PartCostsPanel({ workOrderId, lines }: { workOrderId: string; li
           })}
           <div className="pc-total text-sm">
             <span className="muted">
-              Закупка <span className="mono tnum fw-500">{rub(totals.cost)}</span>
+              Закупка <span className="mono tnum fw-500">{money(totals.cost)}</span>
             </span>
             <span className="muted">
-              Наценка <span className="mono tnum fw-500">{rub(totals.markup)}</span>
+              Наценка <span className="mono tnum fw-500">{money(totals.markup)}</span>
             </span>
             {totals.missing > 0 && <span className="faint">без закупки: {totals.missing}</span>}
           </div>

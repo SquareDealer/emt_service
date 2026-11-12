@@ -124,7 +124,6 @@ test('owner sees the purchase column; renaming alone does not send purchase_pric
   expect(patched).toMatchObject({ name: 'Фильтр масляный MANN' });
   expect(patched).not.toHaveProperty('purchase_price');
   await expect(page.locator('.pl-row[data-editing]')).toHaveCount(0);
-  await expect(page.locator('.pl-row[data-editing]')).toHaveCount(0);
 });
 
 test('owner changing the purchase price sends it', async ({ page }) => {

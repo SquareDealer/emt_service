@@ -76,8 +76,9 @@ export function CostFillModal({
           for (const id of saved) delete next[id];
           return next;
         });
-        qc.invalidateQueries({ queryKey: ['analytics'] });
       }
+      // Список и при полном отказе мог устареть (запчасть удалена) — иначе каждый повтор падает.
+      qc.invalidateQueries({ queryKey: ['analytics'] });
       toast((e as Error).message, 'error');
     },
   });
@@ -167,6 +168,7 @@ export function CostFillModal({
                   aria-label={`Закупка за ед.: ${r.name}, наряд № ${doc}`}
                   aria-invalid={bad ? 'true' : undefined}
                   value={raw}
+                  disabled={save.isPending}
                   onChange={(e) => setDraft((d) => ({ ...d, [r.part_line_id]: e.target.value }))}
                 />
                 <span className="col mono text-xs an-fill-m" data-neg={(m ?? 0) < 0 || undefined}>

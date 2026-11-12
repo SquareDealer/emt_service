@@ -7,7 +7,7 @@ import { money } from '../../lib/format';
 import { useAuth } from '../../lib/auth';
 import { canSeeAnalytics } from '../../lib/roles';
 import { partTemplateBody } from '../../lib/parts';
-import { parsePrice } from '../analytics/query';
+import { parsePrice } from '../../lib/price';
 import { Spinner } from '../../components/ui';
 import type { PartTemplate, PartUnit } from '../../lib/types';
 

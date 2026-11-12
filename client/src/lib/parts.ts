@@ -1,4 +1,4 @@
-import { parsePrice } from '../features/analytics/query';
+import { parsePrice } from './price';
 import type { PartTemplate, PartUnit } from './types';
 
 export interface PartFilter {
@@ -70,4 +70,8 @@ export function partTemplateBody(
   const next = parsed.kind === 'ok' ? parsed.value : null;
   if (opts.initial ? next !== before : next !== null) body.purchase_price = next;
   return body;
+}
+
+export function unitLabel(u: PartUnit): 'шт' | 'л' {
+  return u === 'l' ? 'л' : 'шт';
 }

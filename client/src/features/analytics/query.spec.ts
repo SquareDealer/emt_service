@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { comparisonFor, periodOf, type PeriodKind } from './analytics';
-import { chunk, parsePrice, summaryParams } from './query';
+import { chunk, summaryParams } from './query';
 
 const NOV12 = new Date(2026, 10, 12);
 const params = (kind: PeriodKind, anchor: Date, now = new Date(2026, 10, 12, 15)) => {
@@ -38,21 +38,6 @@ describe('summaryParams', () => {
     const { prev } = params('month', new Date(2026, 9, 15));
     expect(new Date(prev.from).getTime()).toBe(new Date(2026, 8, 1).getTime());
     expect(new Date(prev.to).getTime()).toBe(new Date(2026, 9, 1).getTime());
-  });
-});
-
-describe('parsePrice', () => {
-  it.each([['520', 520], ['12,5', 12.5], ['1 250,40', 1250.4], ['0', 0]])('parsePrice(%s) = %s', (raw, v) => {
-    expect(parsePrice(raw)).toEqual({ kind: 'ok', value: v });
-  });
-  it.each(['abc', '-3', '1e30', '9999999999.999', '12,5,1'])('parsePrice(%s) невалидно', (raw) => {
-    expect(parsePrice(raw)).toEqual({ kind: 'invalid' });
-  });
-  it.each(['', '   '])('parsePrice(%p) пусто', (raw) => {
-    expect(parsePrice(raw)).toEqual({ kind: 'empty' });
-  });
-  it('верхний предел включительно', () => {
-    expect(parsePrice('9999999999.99')).toEqual({ kind: 'ok', value: 9_999_999_999.99 });
   });
 });
 
