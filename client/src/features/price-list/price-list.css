@@ -50,12 +50,6 @@
 .pl-cell { display: contents; }
 .pl-cell::before { display: none; }
 
-@media (max-width: 620px) {
-  .pl-bar > .pl-gen { flex: 1 1 100%; }
-}
-@media (min-width: 621px) {
-  .pl-gen { min-width: 260px; }
-}
 
 /* A narrow table becomes a list of cards, keyed to the panel's own width
    (a 600px modal on a laptop is as narrow as a phone). The name leads, the
@@ -80,7 +74,8 @@
   .pl-row > span:not(:first-child):not(:nth-child(4)):not(.row-actions):not(.pl-cell) {
     font-size: var(--text-xs);
   }
-  .pl-row > .row-actions { order: 4; margin-left: auto; }
+  .pl-row > .row-actions,
+  .pl-row > .pw-row-actions { order: 4; margin-left: auto; }
   .pl-row > input, .pl-row > .pl-cell { flex: 1 1 30%; }
 
   /* price list: hours and price get their captions back */

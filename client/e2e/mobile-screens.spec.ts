@@ -121,3 +121,22 @@ test('board cards leave swipes to the browser and a column fills the phone', asy
   expect(col.width).toBeGreaterThan(board.width * 0.8);
   expect(col.width).toBeLessThan(board.width);
 });
+
+test('analytics on a phone: the four cuts fit, a cost row keeps its sale in view', async ({ page }) => {
+  await page.goto('/analytics');
+  const cuts = page.getByRole('group', { name: 'Разрез' });
+  await expect(cuts).toBeVisible();
+  const group = (await cuts.boundingBox())!;
+  for (const tab of await cuts.getByRole('button').all()) {
+    const box = (await tab.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(group.x - 1);
+    expect(box.x + box.width).toBeLessThanOrEqual(group.x + group.width + 1);
+  }
+
+  await page.getByRole('button', { name: 'Указать закупку' }).first().click();
+  const row = page.locator('dialog[open] .an-fill-row').first();
+  await expect(row.locator('.an-fill-sale')).toBeVisible();
+  // the part's name wraps instead of being cut at «Колодки тормозные пер…»
+  const name = row.locator('.fw-500').first();
+  expect(await name.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+});

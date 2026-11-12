@@ -611,3 +611,29 @@ test('an empty order is still dropped after «Из прайса» was opened and
     .poll(() => deleted.filter((r) => r.method === 'DELETE').length)
     .toBe(1);
 });
+
+test.describe('on a phone', () => {
+  test.use({ viewport: { width: 375, height: 800 }, isMobile: true, hasTouch: true });
+
+  test('works are cards: the price stays on screen, figures keep their captions', async ({ page }) => {
+    await stubApi(page);
+    await openWorks(page);
+    await chooseGeneration(page, /R56/);
+
+    const table = page.locator('.pw-table');
+    // the table used to be 840px wide and scroll sideways inside the panel
+    expect(await table.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+    await expect(page.locator('.pl-head.pw-grid')).toBeHidden();
+
+    const row = page.locator('.pl-row.pw-grid').filter({ hasText: 'Замена масла' });
+    const viewport = page.viewportSize()!;
+    for (const el of [row.getByText('3 000 ₽').first(), row.getByRole('button', { name: /Изменить/ })]) {
+      const box = (await el.boundingBox())!;
+      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+    }
+    const hours = row.getByRole('textbox', { name: /Норм\.ч\./ });
+    await expect(hours).toHaveValue('1.2');
+    const caption = await hours.evaluate((el) => getComputedStyle(el.parentElement!, '::before').content);
+    expect(caption).toBe('"Норм.ч."');
+  });
+});

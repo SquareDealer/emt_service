@@ -319,11 +319,35 @@
   .pp-foot kbd, .pp-foot span:not(.pp-foot-count) { display: none; } /* no keyboard to hint at */
 }
 
-@media (max-width: 860px) {
-  .pw-table { overflow-x: auto; }
-  /* Wide enough that the work's name keeps ~200px next to the fixed columns. */
-  .pw-grid { min-width: 660px; }
-  .pw-grid[data-manage] { min-width: 840px; }
+/* Narrow: the table turns into cards (container query in price-list.css), so
+   nothing scrolls sideways. The table needs ~840px with the manage column. */
+@container pl (max-width: 600px) {
+  .pw-grid > .pw-parts-cell { margin-left: auto; }
+}
+/* The works table is wider than the other catalog tables (up to six columns
+   plus three 44px buttons on touch), so it turns into cards earlier: the same
+   card rules as price-list.css, repeated for 601–860px and this table only. */
+@container pl (min-width: 601px) and (max-width: 860px) {
+  .pl-head.pw-grid { display: none; }
+  .pl-row.pw-grid {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: var(--sp-1) var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+  }
+  .pw-grid > * { order: 3; min-width: 0; }
+  .pw-grid > :first-child {
+    order: 0; flex: 1 1 calc(100% - 9rem);
+    white-space: normal; overflow-wrap: anywhere; font-weight: 500;
+  }
+  .pw-grid > :nth-child(4) { order: 1; flex: 0 0 auto; margin-left: auto; text-align: right; }
+  .pw-grid > .pl-cell { flex: 0 1 9rem; display: flex; flex-direction: column; gap: 2px; }
+  .pw-grid > .pl-cell::before {
+    display: block; content: attr(data-label);
+    font-size: var(--text-xs); font-weight: 500; color: var(--muted);
+  }
+  .pw-grid > .pl-cell > .ta-r { text-align: left; justify-self: auto; }
+  .pw-grid > .pw-parts-cell { margin-left: auto; }
+  .pw-grid > .pw-row-actions { order: 4; }
 }
 
 @media (max-width: 640px) {

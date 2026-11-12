@@ -217,7 +217,7 @@ function WorksTab() {
           </button>
         </div>
       ) : (
-        <div className="panel pw-table">
+        <div className="panel pw-table pl-table">
           <div className="pl-head pw-grid" data-manage={manage || undefined}>
             <span>Работа</span>
             <span className="ta-r">Норм.ч.</span>
@@ -333,6 +333,7 @@ function PriceRow({
   return (
     <div className="pl-row pw-grid" data-manage={manage || undefined}>
       <span className="truncate" title={name}>{name}</span>
+      <span className="pl-cell" data-label="Норм.ч.">
       {editable ? (
         <input
           className="cell-input ta-r tnum"
@@ -347,6 +348,8 @@ function PriceRow({
       ) : (
         <span className="ta-r mono tnum muted">{shownHours ?? '—'}</span>
       )}
+      </span>
+      <span className="pl-cell" data-label="Цена">
       {editable ? (
         <input
           className="cell-input ta-r tnum"
@@ -361,6 +364,7 @@ function PriceRow({
       ) : (
         <span className="ta-r mono tnum muted">{shownPrice != null ? money(shownPrice) : '—'}</span>
       )}
+      </span>
       <span className="ta-r mono tnum" data-inherited={(showSource && inherited) || undefined}>
         {row.effective.price != null ? money(row.effective.price) : '—'}
         {showSource && <span className="pl-src">{SOURCE_LABEL[row.effective.source]}</span>}

@@ -14,7 +14,6 @@
 .wo-client { color: var(--primary-ink); font-weight: 500; }
 .wo-client:hover { text-decoration: underline; }
 .wo-status-select { width: auto; min-width: 140px; }
-.wo-tpl-select { width: auto; height: 1.875rem; min-width: 0; flex: 0 1 auto; }
 .wo-page .panel-title { white-space: nowrap; }
 
 .wo-frozen-banner {
@@ -31,7 +30,7 @@
   gap: var(--sp-4);
   align-items: start;
 }
-@media (max-width: 920px) { .wo-grid { grid-template-columns: 1fr; } }
+@media (max-width: 920px) { .wo-grid { grid-template-columns: minmax(0, 1fr); } }
 
 /* smeta tables */
 .smeta { display: flex; flex-direction: column; }

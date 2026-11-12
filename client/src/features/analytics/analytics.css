@@ -281,6 +281,37 @@ line.an-base { stroke: var(--border-strong); stroke-width: 1; shape-rendering: c
   .an-share, .an-share-h { display: none; }
   .an-row .truncate { white-space: normal; }
   .an-bd .panel-head { flex-wrap: wrap; }
-  .an-fill-row { grid-template-columns: minmax(0, 1fr) 104px; }
-  .an-fill-sale, .an-fill-m { display: none; }
+  /* the four cuts share the row instead of running off its right edge */
+  .an-bd .panel-head > .seg { flex: 1 1 100%; }
+  .an-bd .panel-head > .seg .seg-btn { flex: 1 1 0; min-width: 0; padding: 0 var(--sp-1); }
+
+  /* Filling a cost on a phone: the part's full name and what it sold for stay
+     in view — the sale is the yardstick for the number being typed. */
+  .an-fill-row {
+    grid-template-columns: minmax(0, 1fr) 104px;
+    grid-template-areas: 'name input' 'sale input';
+    row-gap: 2px;
+  }
+  .an-fill-row > .col:first-child { grid-area: name; }
+  .an-fill-row > .col:first-child > .fw-500 { white-space: normal; overflow-wrap: anywhere; }
+  .an-fill-sale {
+    grid-area: sale;
+    flex-direction: row; align-items: baseline; gap: var(--sp-1);
+    text-align: left; font-size: var(--text-xs);
+  }
+  .an-fill-input { grid-area: input; }
+  .an-fill-m { display: none; }
+}
+/* Small phones: two 92px figure columns left the name ~70px («Заме… сцеп…»).
+   The name takes its own line; the figures stay in their aligned columns. */
+@media (max-width: 420px) {
+  .an-row { row-gap: 2px; }
+  .an-row > :first-child { grid-row: 1; grid-column: 1 / -1; }
+  /* An empty first cell on the figures' line pushes them under their headers
+     (minor columns are interleaved and hidden, so nth-child can't place them). */
+  .an-row::before { content: ''; grid-row: 2; grid-column: 1; }
+  .an-row > :not(:first-child) { grid-row: 2; }
+}
+@media (max-width: 360px) {
+  .an-bd .panel-head > .seg { display: grid; grid-template-columns: 1fr 1fr; }
 }

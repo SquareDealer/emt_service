@@ -179,9 +179,15 @@ index.css дизайн-токены (OKLCH, light/dark via [data-theme]), ком
   мутации, иначе наряд с только что добавленной строкой мог быть удалён.
 - **Смета и таблицы прайса узкие не только на телефоне:** рядом с сайдбаром и колонкой итогов
   смета на ноутбуке 1280 ~650px. Поэтому переключение «таблица → карточки» — container query по
-  ширине панели (`.smeta` ≤780px, `.pl-table` ≤600px), а не `@media`. Числа строки обёрнуты в
-  `.c-metas` (`display: contents` в таблице), поля форм — в `<label class="cell-field" data-label>`
-  (подпись — `::before`, видна только в карточке).
+  ширине панели (`.smeta` ≤780px, `.pl-table` ≤600px, таблица работ прайса `.pw-grid` — ≤860px,
+  она шире), а не `@media`. Числа строки обёрнуты в `.c-metas` (`display: contents` в таблице),
+  поля форм — в `<label class="cell-field" data-label>`, цифры прайса — в `.pl-cell[data-label]`
+  (подпись — `::before`, видна только в карточке). Карточка прайса раскладывается по позициям
+  детей (`:first-child` — название, `:nth-child(4)` — главная сумма): новая колонка в строке
+  прайса сдвинет раскладку.
+- **Аналитика на телефоне:** вкладки «Разрез» делят строку (≤360 — 2×2); в «Что выгодно» на ≤420
+  название на своей строке, а числа встают под заголовки через пустой `.an-row::before` в первой
+  ячейке — колонки `data-minor` скрыты и перемешаны, `nth-child` их не найдёт.
 - **Доска на тач-экране:** `MouseSensor` (5px) + `TouchSensor` (удержание 250мс), карточки
   `touch-action: manipulation`. С `PointerSensor` + `touch-action: none` любой свайп по карточке
   начинал drag вместо прокрутки. JS-панорамирование фона — только для мыши.
@@ -192,7 +198,7 @@ index.css дизайн-токены (OKLCH, light/dark via [data-theme]), ком
 ```bash
 npx tsc --noEmit && npm test && npm run lint -- --max-warnings=0 && npm run build   # backend, 188 тестов
 cd client && npm run typecheck && npm run lint && npm test && npm run build          # client, 49 тестов
-cd client && npx playwright test                                                     # 44 e2e
+cd client && npx playwright test                                                     # 49 e2e
 ```
 - **Конвенция:** чистые юниты с рукописными фейковыми репозиториями (`as never`), без
   `@nestjs/testing` и supertest. См. `users.service.spec.ts`.
@@ -209,7 +215,10 @@ cd client && npx playwright test                                                
   попадают — `tsconfig.build.json` исключает `**/*spec.ts`). `lib/schedule.spec.ts`.
 - Playwright (`client/e2e/`, все `/api/**` застабены): mobile-вёрстка + календарь
   (клик по пустому месту, протяжка панорамирует, вид резерва); `mobile-screens.spec.ts` — смета
-  карточками на телефоне, строка архива, тач-прокрутка доски.
+  карточками на телефоне, строка архива, тач-прокрутка доски, аналитика;
+  в `price-list-works.spec.ts` — блок «on a phone» (работы прайса карточками).
+  Нестабилен `choosing «Базовые цены» sends generation_id=base / null`: под параллельной
+  нагрузкой Enter иногда уходит раньше, чем отфильтруется список (отдельно — 5/5).
 - Acceptance AC-1..10 — в `checks.md`.
 - Backend tsconfig исключает `client/`.
 
