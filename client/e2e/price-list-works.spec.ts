@@ -286,6 +286,27 @@ test('master sees prices but no add / edit / remove / manage controls', async ({
   expect(api.calls.filter((c) => c.method !== 'GET')).toEqual([]);
 });
 
+test('master reads the parts catalog too, with nothing that writes', async ({ page }) => {
+  const api = await stubApi(page, master);
+  await page.route('**/api/part-templates**', (route) =>
+    route.fulfill(json([{
+      id: 'p1', name: 'Фильтр масляный', manufacturer: 'MANN', catalog_number: 'W712/95',
+      unit: 'pcs', default_price: 900, active: true,
+    }])),
+  );
+  await openWorks(page);
+  await page.getByRole('button', { name: 'Запчасти' }).click();
+  await expect(page.getByText('Фильтр масляный')).toBeVisible();
+  await expect(page.getByText('W712/95')).toBeVisible();
+
+  await expect(page.getByRole('button', { name: /^Изменить / })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Убрать из каталога' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Добавить в каталог' })).toHaveCount(0);
+  await expect(page.locator('.pl-row input, .pl-row select')).toHaveCount(0);
+
+  expect(api.calls.filter((c) => c.method !== 'GET')).toEqual([]);
+});
+
 test('settings no longer has the «Шаблоны работ» section', async ({ page }) => {
   const api = await stubApi(page);
   await page.goto('/settings');
@@ -425,11 +446,11 @@ async function openWorkOrder(page: Page, wo: ReturnType<typeof workOrder>) {
 
 /** Requests the page made to one work-order endpoint, as recorded by the browser. */
 function track(page: Page, suffix: string) {
-  const seen: { url: URL; body: unknown }[] = [];
+  const seen: { url: URL; method: string; body: unknown }[] = [];
   page.on('request', (request) => {
     const url = new URL(request.url());
     if (url.pathname.endsWith(suffix)) {
-      seen.push({ url, body: request.postData() ? request.postDataJSON() : null });
+      seen.push({ url, method: request.method(), body: request.postData() ? request.postDataJSON() : null });
     }
   });
   return seen;
@@ -572,4 +593,21 @@ test('phone: the picker panel stays inside the viewport with 44px targets', asyn
     expect(box.width).toBeGreaterThanOrEqual(44);
   }
   await context.close();
+});
+
+test('an empty order is still dropped after «Из прайса» was opened and cancelled', async ({ page }) => {
+  await stubApi(page);
+  const deleted = track(page, '/work-orders/wo1');
+  await openWorkOrder(page, { ...workOrder('g-r56', 'R56'), title: null, status: 'scheduled' } as never);
+
+  await page.getByRole('button', { name: 'Из прайса' }).click();
+  await expect(page.getByRole('dialog', { name: 'Работа из прайса' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Работа из прайса' })).toHaveCount(0);
+
+  // Leaving an untouched, empty order removes it — looking at the price list is not a touch.
+  await page.getByRole('link', { name: 'Клиенты' }).first().click();
+  await expect
+    .poll(() => deleted.filter((r) => r.method === 'DELETE').length)
+    .toBe(1);
 });

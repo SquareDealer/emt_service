@@ -183,7 +183,7 @@ index.css дизайн-токены (OKLCH, light/dark via [data-theme]), ком
 ```bash
 npx tsc --noEmit && npm test && npm run lint -- --max-warnings=0 && npm run build   # backend, 188 тестов
 cd client && npm run typecheck && npm run lint && npm test && npm run build          # client, 49 тестов
-cd client && npx playwright test                                                     # 42 e2e
+cd client && npx playwright test                                                     # 44 e2e
 ```
 - **Конвенция:** чистые юниты с рукописными фейковыми репозиториями (`as never`), без
   `@nestjs/testing` и supertest. См. `users.service.spec.ts`.

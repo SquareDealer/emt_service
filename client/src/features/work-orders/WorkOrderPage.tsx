@@ -399,7 +399,7 @@ export function WorkOrderPage() {
                 <button
                   type="button"
                   className="btn btn-default btn-sm"
-                  onClick={() => { keep(); setPricePickerOpen(true); }}
+                  onClick={() => setPricePickerOpen(true)}
                   title="Добавить работу из прайса вместе с её запчастями"
                 >
                   <Tag size={14} /> Из прайса
@@ -678,6 +678,9 @@ export function WorkOrderPage() {
         workOrder={wo}
         onClose={() => setPricePickerOpen(false)}
         onPick={(templateId, generationId) => {
+          // Keep the order from here on, not when the picker merely opens:
+          // browsing the price list and cancelling must not pin an empty order.
+          keep();
           setPricePickerOpen(false);
           setApplyTpl({ templateId, generationId });
         }}

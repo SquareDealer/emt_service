@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Pencil, Plus, Search, Trash2, Package, X } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
+import { useAuth } from '../../lib/auth';
+import { canManageCatalog } from '../../lib/roles';
 import { money } from '../../lib/format';
 import { Spinner } from '../../components/ui';
 import type { PartTemplate, PartUnit } from '../../lib/types';
@@ -15,6 +17,9 @@ import type { PartTemplate, PartUnit } from '../../lib/types';
 export function PartsCatalog() {
   const qc = useQueryClient();
   const toast = useToast();
+  // The server refuses a master's writes anyway; the catalog is read-only for them here too.
+  const { user } = useAuth();
+  const manage = canManageCatalog(user?.role);
   const [q, setQ] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -72,10 +77,10 @@ export function PartsCatalog() {
           <div className="center" style={{ minHeight: 120 }}><Spinner size={20} /></div>
         ) : (parts ?? []).length === 0 ? (
           <div className="smeta-empty">
-            {q ? 'Ничего не найдено.' : 'Каталог пуст. Добавьте первую запчасть ниже.'}
+            {q ? 'Ничего не найдено.' : manage ? 'Каталог пуст. Добавьте первую запчасть ниже.' : 'Каталог пуст.'}
           </div>
         ) : (
-          (parts ?? []).map((p) => p.id === editingId ? (
+          (parts ?? []).map((p) => manage && p.id === editingId ? (
             <PartTemplateForm
               key={p.id}
               initial={p}
@@ -91,7 +96,7 @@ export function PartsCatalog() {
               <span className="ta-r mono tnum">
                 {p.default_price != null ? money(p.default_price) : '—'}
               </span>
-              <span className="row-actions">
+              {manage && <span className="row-actions">
                 <button
                   className="btn btn-ghost btn-icon btn-sm"
                   onClick={() => setEditingId(p.id)}
@@ -108,12 +113,12 @@ export function PartsCatalog() {
                 >
                   <Trash2 size={14} />
                 </button>
-              </span>
+              </span>}
             </div>
           ))
         )}
 
-        <PartTemplateForm busy={mCreate.isPending} onSubmit={(b) => mCreate.mutate(b)} />
+        {manage && <PartTemplateForm busy={mCreate.isPending} onSubmit={(b) => mCreate.mutate(b)} />}
       </div>
 
       <p className="text-xs muted">
