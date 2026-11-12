@@ -125,7 +125,7 @@ export function CostFillModal({
       </p>
       {isLoading ? (
         <ListSkeleton rows={4} />
-      ) : isError ? (
+      ) : isError && !data ? (
         <div className="col gap-2" style={{ alignItems: 'flex-start' }}>
           <span className="text-sm">Не удалось загрузить список запчастей</span>
           <button type="button" className="btn btn-default btn-sm" onClick={() => refetch()}>
