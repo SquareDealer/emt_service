@@ -224,3 +224,22 @@ describe('calculation title — printable before the order is closed', () => {
     expect(buf.subarray(0, 4).toString()).toBe('%PDF');
   });
 });
+
+describe('document header — logo centred, shared by both documents', () => {
+  const settings = { companyName: 'EMT', companyInn: '7700000000', companyAddress: 'Москва', companyPhone: '', vatRate: 0 };
+  const widths = (cols: unknown[]) => cols.map((c) => (c as { width: unknown }).width);
+
+  it('flanks the logo with two equal star columns', () => {
+    const cols = svc.headerColumns('data:image/png;base64,AAAA', settings, 'EMT');
+    expect(widths(cols)).toEqual(['*', 130, '*']);
+    expect(cols[1]).toMatchObject({ image: 'data:image/png;base64,AAAA', alignment: 'center' });
+    expect(JSON.stringify(cols[2])).toContain('7700000000'); // requisites stay on the right
+  });
+
+  it('keeps the geometry and prints no placeholder when the logo file is missing', () => {
+    const cols = svc.headerColumns(null, settings, 'EMT');
+    expect(widths(cols)).toEqual(['*', 130, '*']);
+    expect(JSON.stringify(cols)).not.toContain('STO');
+    expect(cols[1]).not.toHaveProperty('image');
+  });
+});

@@ -59,6 +59,8 @@ function groupHeadings(lines: { group_key: string | null; group_name: string | n
 }
 
 const FONTS_DIR = path.join(process.cwd(), 'assets', 'fonts');
+/** Printed logo width, pt. */
+const LOGO_WIDTH = 130;
 const LOGO_PATH = path.join(process.cwd(), 'assets', 'emt-logo-light-theme.png');
 
 /** Which document to render: the post-close calculation or the work order. */
@@ -152,7 +154,7 @@ export class WorkOrderPdfService {
   /** Right-aligned company requisites block, shared by both documents. */
   private companyBlock(s: DocSettings, companyName: string): Column {
     return {
-      width: 'auto',
+      width: '*',
       style: 'company',
       stack: [
         { text: companyName, bold: true },
@@ -161,6 +163,22 @@ export class WorkOrderPdfService {
         s.companyPhone || '',
       ].filter(Boolean) as Content[],
     };
+  }
+
+  /**
+   * Letterhead shared by both documents: logo in the geometric centre,
+   * requisites on the right. The two equal star columns are what centre the
+   * logo — with the requisites block at 'auto' it would drift left by half
+   * that block's width. A missing logo file leaves the slot empty.
+   */
+  headerColumns(logo: string | null, s: DocSettings, companyName: string): Column[] {
+    return [
+      { text: '', width: '*' },
+      logo
+        ? { image: logo, width: LOGO_WIDTH, alignment: 'center' }
+        : { text: '', width: LOGO_WIDTH },
+      this.companyBlock(s, companyName),
+    ];
   }
 
   // ====================== «Предварительная калькуляция» ======================
@@ -201,13 +219,8 @@ export class WorkOrderPdfService {
       defaultStyle: { font: 'Roboto', fontSize: 8, lineHeight: 1.1 },
       styles: this.styles(),
       content: [
-        // --- header: company requisites (right) ---
-        {
-          columns: [
-            { text: 'STO', bold: true, fontSize: 12, width: '*' },
-            this.companyBlock(s, companyName),
-          ],
-        },
+        // --- header: EMT logo (centre) + company requisites (right) ---
+        { columns: this.headerColumns(this.logo(), s, companyName), columnGap: 8 },
         { text: 'Предварительная калькуляция', style: 'docTitle', margin: [0, 12, 0, 0] },
         { text: this.calcTitleLine(wo), style: 'docTitle', margin: [0, 1, 0, 10] },
 
@@ -327,7 +340,6 @@ export class WorkOrderPdfService {
 
     const docNo = wo.order_doc_number != null ? String(wo.order_doc_number) : '—';
     const docDate = this.dmy(wo.closed_at ?? wo.created_at);
-    const logo = this.logo();
     const v = wo.vehicle;
     const client = v?.client;
     const masterName = wo.assigned_master?.name ?? '';
@@ -349,14 +361,8 @@ export class WorkOrderPdfService {
       defaultStyle: { font: 'Roboto', fontSize: 8, lineHeight: 1.1 },
       styles: this.styles(),
       content: [
-        // --- header: EMT logo (top-left) + company requisites (right) ---
-        {
-          columns: [
-            logo ? { image: logo, width: 130, margin: [0, 0, 0, 0] } : { text: '', width: 'auto' },
-            { text: '', width: '*' },
-            this.companyBlock(s, companyName),
-          ],
-        },
+        // --- header: EMT logo (centre) + company requisites (right) ---
+        { columns: this.headerColumns(this.logo(), s, companyName), columnGap: 8 },
         {
           text: `Заказ наряд № ${docNo} от ${docDate}`,
           style: 'docTitle',
