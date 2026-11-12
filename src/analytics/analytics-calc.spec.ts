@@ -83,6 +83,19 @@ describe('toAnalyticsOrder', () => {
     expect(o.total).toBe(0);
   });
 
+  it('все строки нулевые (S ≤ 0), total_frozen 0: все net 0, без NaN', () => {
+    const o = toAnalyticsOrder(
+      wo({
+        labor_lines: [labor({ hours: 0 })],
+        part_lines: [part({ unit_price: 0 })],
+        total_frozen: 0,
+      }), pricing);
+    expect(o.labor[0].net).toBe(0);
+    expect(o.parts[0].net).toBe(0);
+    expect(o.total).toBe(0);
+    expect(Number.isNaN(o.discounts)).toBe(false);
+  });
+
   it('purchase_price 0 — закупка известна и равна нулю', () => {
     const o = toAnalyticsOrder(
       wo({ labor_lines: [labor()], part_lines: [part({ purchase_price: 0 })], total_frozen: 18800 }),
@@ -206,6 +219,21 @@ describe('breakdown', () => {
     expect(bd.parts).toHaveLength(1);
     expect(row).toMatchObject({ revenue: 1950, cost: 520, markup: 430, unknown_count: 1 });
     expect(row.markup_pct).toBeCloseTo(430 / 520, 10);
+  });
+
+  it('запчасти: известная закупка 0 → cost 0, markup = продажа, markup_pct null', () => {
+    const bd = breakdown([order({ parts: [aPart({ key: 'Z', net: 950, cost: 0 })] })]);
+    expect(bd.parts[0]).toMatchObject({ cost: 0, markup: 950, markup_pct: null });
+  });
+
+  it('запчасти: одна позиция в штуках и в литрах — две строки', () => {
+    const bd = breakdown([
+      order({ parts: [aPart({ key: 'oil', unit: 'pcs', qty: 2, net: 100, cost: 50 })] }),
+      order({ parts: [aPart({ key: 'oil', unit: 'l', qty: 4, net: 200, cost: 100 })] }),
+    ]);
+    expect(bd.parts).toHaveLength(2);
+    expect(bd.parts.map((r) => [r.unit, r.qty]).sort()).toEqual([['l', 4], ['pcs', 2]]);
+    expect(new Set(bd.parts.map((r) => r.key)).size).toBe(2);
   });
 
   it('запчасти: литры сохраняют три знака после запятой', () => {

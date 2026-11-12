@@ -87,7 +87,7 @@ Settings(key-value: labor_rate, company_*, vat_rate, расписание)
   копируется в строку при добавлении/разворачивании шаблона/`duplicate`. `normalize()` каталога её не
   трогает. `save()` частичной сущности колонку не затирает (проверено на живой БД), но **выкидывает её
   из возвращаемой сущности** — поэтому `create`/`update` каталога перечитывают строку через `findOne`.
-  Правка закупки закрытого наряда `total_frozen` не двигает. Сценарий — `scripts/verify-analytics.mjs` (AC-11).
+  Правка закупки закрытого наряда `total_frozen` не двигает. Сценарий — `scripts/verify-analytics.mjs` (AC-11; только dev-база, нужен `ALLOW_DESTRUCTIVE_CHECK=1`, за собой деактивирует созданное).
 - **Видимость резервов — другая:** `user_id IS NULL OR user_id = viewer`. Общий резерв обязан быть
   виден мастеру, иначе он перезапишет занятый подъёмник.
 
@@ -139,7 +139,9 @@ API (всё под JWT кроме `/health`, `/auth/login`):
 - `/calendar-blocks`, `/task-templates`, `/users`, `/settings`, `/search?q=`
 
 Запись в каталоги (`task-templates`, `part-templates`, `vehicle-generations`, `price-list`) —
-`@Roles('owner','master_receptionist')`; чтение открыто всем. Удаление шаблонов и поколений —
+`@Roles('owner','master_receptionist')`; чтение открыто всем — **кроме `purchase_price`**: его читает и
+пишет только `owner` (`assertCostAccess` → 403 даже на `null`; `findAll`/`findOne` получают `withCost`
+только для владельца). Удаление шаблонов и поколений —
 **деактивация** (`active=false`), на них ссылаются исторические наряды.
 
 **PDF** (pdfmake, оба документа в `pdf/work-order-pdf.service.ts`):
@@ -191,17 +193,21 @@ index.css дизайн-токены (OKLCH, light/dark via [data-theme]), ком
 ## Проверки / тесты
 
 ```bash
-npx tsc --noEmit && npm test && npm run lint -- --max-warnings=0 && npm run build   # backend, 267 тестов
+npx tsc --noEmit && npm test && npm run lint -- --max-warnings=0 && npm run build   # backend, 288 тестов
 cd client && npm run typecheck && npm run lint && npm test && npm run build          # client, 49 тестов
 cd client && npx playwright test                                                     # 42 e2e
 ```
 - **Конвенция:** чистые юниты с рукописными фейковыми репозиториями (`as never`), без
   `@nestjs/testing` и supertest. См. `users.service.spec.ts`.
-- Backend: `pricing.service` (30 — включая инвариант печатного блока итогов), `work-orders.service`
-  (22 — скоупинг, заморозка, копия), `work-order-lines.service` (13 — разворачивание шаблона, роли),
-  `pdf/work-order-pdf.service` (18 — колонки и блоки, не байты), `price-resolution` (11),
-  `calendar-blocks` (15 — пересечение интервалов, видимость), `users`, `settings`, `clients`,
-  `clients-import`, `rubles-in-words`, `vehicle-label`.
+- Backend (288 в 19 наборах): `pricing.service` (30 — включая инвариант печатного блока итогов),
+  `work-orders.service` (28 — скоупинг, заморозка, копия), `work-order-lines.service` (24 — разворачивание
+  шаблона, роли, закупка в строке), `pdf/work-order-pdf.service` (23 — колонки и блоки, не байты),
+  `price-resolution` (11), `price-list.service` (7), `calendar-blocks` (15 — пересечение интервалов,
+  видимость), `analytics-calc` (22 — раскладка скидки, итоги, разрезы), `analytics.service` (45 — SQL-окна,
+  DTO закупок, парсеры периода), `analytics.guards` (2 — owner-only на контроллере),
+  `part-templates.service` (14), `part-templates.controller` (11 — `assertCostAccess`, `withCost` только
+  владельцу, предел цены), `entities/purchase-price` (2), `users` (9), `settings` (5), `clients` (7),
+  `clients-import` (19), `rubles-in-words` (9), `vehicle-label` (5).
 - Client (vitest): `lib/format.spec.ts` и jest-спека `PricingService` читают **одну** таблицу
   `client/src/lib/pricing-fixtures.json` — расхождение зеркал роняет один из наборов.
   Таблица лежит на стороне клиента не случайно: контекст сборки клиентского образа — `./client`,
@@ -274,6 +280,11 @@ guard'а (любой мастер мог снести каталог).
 - **Ловушка CSS:** `.unit-select` получает стрелку в `wo.css`, а не в слое `index.css` —
   unlayered-шортхенд `background` в правилах ячеек стирает `background-image` из слоя.
 - **E2E:** проект Playwright — телефон; десктопные спеки ставят `test.use({ viewport, isMobile: false })`.
+
+**Аналитика и закупочная цена (владелец):** `purchase_price` на строке запчасти (снимок из каталога при
+добавлении) и в каталоге; `GET /analytics/summary` (корзины по `edges`, период сравнения), `missing-costs`,
+`part-costs`. Период — только полный ISO-инстант с зоной (`parseIso` отвергает date-only), закупка ≤ 9 999 999 999.99,
+разрез запчастей ключуется парой «позиция + единица» (штуки и литры не склеиваются). Проверка — AC-11.
 
 **Dev-база сейчас почти пуста:** 1 клиент, 0 нарядов, 3 засеянных шаблона работ, каталог запчастей
 пуст. Прежнего импорта ~339 клиентов больше нет — если нужны реальные данные, импортировать заново.

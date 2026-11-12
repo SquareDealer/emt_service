@@ -159,6 +159,12 @@ function byRecency(orders: AnalyticsOrder[]): AnalyticsOrder[] {
   return [...orders].sort((a, b) => a.closed_at.getTime() - b.closed_at.getTime());
 }
 
+function pushTo<T>(map: Map<string, T[]>, key: string, item: T): void {
+  const list = map.get(key);
+  if (list) list.push(item);
+  else map.set(key, [item]);
+}
+
 export function breakdown(orders: AnalyticsOrder[]): Breakdown {
   // Старые → новые: отображаемые поля группы перезаписываются самым поздним нарядом.
   const sorted = byRecency(orders);
@@ -181,7 +187,9 @@ export function breakdown(orders: AnalyticsOrder[]): Breakdown {
       labor.set(l.key, g);
     }
     for (const p of o.parts) {
-      const g = parts.get(p.key) ?? {
+      // Одна позиция каталога в штуках и в литрах — разные строки, иначе qty складывает несопоставимое.
+      const gkey = p.key + '|' + p.unit;
+      const g = parts.get(gkey) ?? {
         name: p.name, manufacturer: p.manufacturer, unit: p.unit, qty: 0, revenue: 0,
         sale: 0, cost: 0, known: 0, unknown: 0,
       };
@@ -192,10 +200,10 @@ export function breakdown(orders: AnalyticsOrder[]): Breakdown {
       g.revenue += p.net;
       if (p.cost === null) g.unknown += 1;
       else { g.sale += p.net; g.cost += p.cost; g.known += 1; }
-      parts.set(p.key, g);
+      parts.set(gkey, g);
     }
-    vehicles.set(o.vehicle, [...(vehicles.get(o.vehicle) ?? []), o]);
-    clients.set(o.client.id, [...(clients.get(o.client.id) ?? []), o]);
+    pushTo(vehicles, o.vehicle, o);
+    pushTo(clients, o.client.id, o);
   }
 
   const stats = (list: AnalyticsOrder[]) => {

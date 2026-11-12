@@ -16,6 +16,7 @@ import {
   IsArray,
   IsNumber,
   IsUUID,
+  Max,
   Min,
   ValidateIf,
   ValidateNested,
@@ -30,15 +31,23 @@ import {
 } from './analytics.service';
 
 const MAX_EDGES = 63;
+/** Предел numeric(12,2). */
+export const MAX_PURCHASE_PRICE = 9_999_999_999.99;
+
+/** Полный инстант: время и явная зона. Date-only парсится как UTC-полночь и сдвигает окно на часовой пояс. */
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
 
 /** Повтор параметра (`?from=a&from=b`) приходит массивом — это 400, а не TypeError. */
 function parseIso(raw: unknown, param: string): Date {
   if (typeof raw !== 'string') {
     throw new BadRequestException(`Параметр ${param}: ожидается одна ISO-дата`);
   }
-  const d = new Date(raw.trim());
-  if (!raw.trim() || Number.isNaN(d.getTime()) || !/^\d{4}-\d{2}-\d{2}/.test(raw.trim())) {
-    throw new BadRequestException(`Параметр ${param}: «${raw}» — не ISO-дата`);
+  const t = raw.trim();
+  const d = new Date(t);
+  if (!ISO_INSTANT.test(t) || Number.isNaN(d.getTime())) {
+    throw new BadRequestException(
+      `Параметр ${param}: «${raw}» — нужен полный ISO-момент с часовой зоной (например 2026-11-01T00:00:00Z)`,
+    );
   }
   return d;
 }
@@ -99,6 +108,7 @@ export class PartCostItemDto {
   @ValidateIf((o: PartCostItemDto) => o.purchase_price !== null)
   @IsNumber({ allowNaN: false, allowInfinity: false })
   @Min(0)
+  @Max(MAX_PURCHASE_PRICE)
   purchase_price: number | null;
 }
 

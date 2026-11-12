@@ -267,6 +267,10 @@ describe('SetPartCostsDto', () => {
     expect(await check({ items: [item({ purchase_price: -1 })] })).toBeGreaterThan(0);
     expect(await check({ items: [item({ purchase_price: '5' })] })).toBeGreaterThan(0);
   });
+  it('purchase_price выше предела numeric(12,2) не проходит, сам предел проходит', async () => {
+    expect(await check({ items: [item({ purchase_price: 10_000_000_000 })] })).toBeGreaterThan(0);
+    expect(await check({ items: [item({ purchase_price: 9_999_999_999.99 })] })).toBe(0);
+  });
   it('part_line_id должен быть uuid', async () => {
     expect(await check({ items: [item({ part_line_id: 'abc' })] })).toBeGreaterThan(0);
   });
@@ -315,6 +319,13 @@ describe('parseEdges', () => {
   it.each([undefined, '', '2026-11-01T00:00:00Z'])('меньше двух границ → 400: %p', (raw) => {
     expect(() => parseEdges(raw)).toThrow(BadRequestException);
   });
+  it('date-only и инстант без зоны → 400 с именем параметра', () => {
+    expect(() => parseEdges('2026-11-01,2026-12-01T00:00:00Z')).toThrow(/edges/);
+    expect(() => parseEdges('2026-11-01T00:00:00,2026-12-01T00:00:00Z')).toThrow(BadRequestException);
+  });
+  it('инстант со смещением ±hh:mm принимается', () => {
+    expect(parseEdges('2026-11-01T00:00:00+03:00,2026-12-01T00:00:00.500Z')).toHaveLength(2);
+  });
   it('не ISO → 400', () => expect(() => parseEdges('вчера,сегодня')).toThrow(BadRequestException));
   it('не по возрастанию → 400', () => {
     expect(() => parseEdges('2026-12-01T00:00:00Z,2026-11-01T00:00:00Z')).toThrow(BadRequestException);
@@ -328,6 +339,16 @@ describe('parseEdges', () => {
   it('63 границы проходят', () => expect(parseEdges(many(63))).toHaveLength(63));
   it('сообщение называет параметр', () => {
     expect(() => parseEdges('вчера,сегодня')).toThrow(/edges/);
+  });
+});
+
+describe('parseRange / parsePrev: полный инстант', () => {
+  it('date-only → 400 с именем параметра', () => {
+    expect(() => parseRange('2026-11-01', '2026-12-01T00:00:00Z')).toThrow(/from/);
+    expect(() => parsePrev('2026-10-01T00:00:00Z', '2026-11-01')).toThrow(/prev_to/);
+  });
+  it('инстант без зоны → 400', () => {
+    expect(() => parseRange('2026-11-01T00:00:00', '2026-12-01T00:00:00Z')).toThrow(BadRequestException);
   });
 });
 

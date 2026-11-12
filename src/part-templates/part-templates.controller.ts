@@ -11,14 +11,15 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { IsBoolean, IsIn, IsNumber, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsNumber, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
 import { CurrentUser, CurrentUserData } from '../auth/current-user.decorator';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
+import { MAX_PURCHASE_PRICE } from '../analytics/analytics.controller';
 import { PartUnit } from '../entities/part-line.entity';
 import { PartTemplatesService } from './part-templates.service';
 
-class CreatePartTemplateDto {
+export class CreatePartTemplateDto {
   @IsString()
   @MinLength(1)
   name: string;
@@ -43,6 +44,7 @@ class CreatePartTemplateDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Max(MAX_PURCHASE_PRICE)
   purchase_price?: number | null;
 
   @IsOptional()
@@ -50,7 +52,7 @@ class CreatePartTemplateDto {
   active?: boolean;
 }
 
-class UpdatePartTemplateDto {
+export class UpdatePartTemplateDto {
   @IsOptional()
   @IsString()
   @MinLength(1)
@@ -76,6 +78,7 @@ class UpdatePartTemplateDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Max(MAX_PURCHASE_PRICE)
   purchase_price?: number | null;
 
   @IsOptional()
@@ -83,7 +86,7 @@ class UpdatePartTemplateDto {
   active?: boolean;
 }
 
-function assertCostAccess(user: CurrentUserData, dto: { purchase_price?: number | null }) {
+export function assertCostAccess(user: CurrentUserData, dto: { purchase_price?: number | null }) {
   if (dto.purchase_price !== undefined && user.role !== 'owner') {
     throw new ForbiddenException('Закупочную цену меняет только владелец');
   }
