@@ -9,6 +9,7 @@ import { TaskTemplatePart } from '../entities/task-template-part.entity';
 import { SettingsService } from '../settings/settings.service';
 import { TaskTemplatesService } from '../task-templates/task-templates.service';
 import { PriceListService } from '../task-templates/price-list.service';
+import { PartTemplatesService } from '../part-templates/part-templates.service';
 import { WorkOrdersCoreService } from './work-orders-core.service';
 import type { Viewer } from './work-orders-core.service';
 import {
@@ -78,6 +79,7 @@ export class WorkOrderLinesService {
     private readonly settings: SettingsService,
     private readonly templates: TaskTemplatesService,
     private readonly priceList: PriceListService,
+    private readonly partTemplates: PartTemplatesService,
   ) {}
 
   // ---------------- labor ----------------
@@ -170,6 +172,11 @@ export class WorkOrderLinesService {
 
   async addPartLine(id: string, dto: CreatePartLineDto, viewer: Viewer): Promise<WorkOrder> {
     const wo = await this.core.assertOpen(id, viewer);
+    // Snapshot of the catalog's purchase price at the moment of adding; the
+    // client never sends it. A hand-typed part has no catalog entry → null.
+    const purchasePrice = dto.part_template_id
+      ? ((await this.partTemplates.purchasePrices([dto.part_template_id])).get(dto.part_template_id) ?? null)
+      : null;
     const line = this.partRepo.create({
       work_order_id: wo.id,
       name: dto.name,
@@ -179,6 +186,7 @@ export class WorkOrderLinesService {
       qty: dto.qty ?? 1,
       unit: dto.unit ?? 'pcs',
       unit_price: dto.unit_price,
+      purchase_price: purchasePrice,
       discount_type: dto.discount_type ?? null,
       discount_value: dto.discount_value ?? null,
       group_key: dto.group_key ?? null,
@@ -321,6 +329,11 @@ export class WorkOrderLinesService {
       ? preview.parts.filter((p) => dto.part_template_ids!.includes(p.part_template_id))
       : preview.parts.filter((p) => p.is_default);
 
+    // One query for every chosen part, before the transaction opens.
+    const purchasePrices = await this.partTemplates.purchasePrices(
+      chosen.map((p) => p.part_template_id),
+    );
+
     const groupKey = randomUUID();
     const groupSort = nextGroupSort(wo);
     let laborSort = nextSort(wo.labor_lines);
@@ -355,6 +368,7 @@ export class WorkOrderLinesService {
             qty: dto.qty?.[part.part_template_id] ?? part.qty,
             unit: part.unit as PartLine['unit'],
             unit_price: part.unit_price ?? 0,
+            purchase_price: purchasePrices.get(part.part_template_id) ?? null,
             discount_type: null,
             discount_value: null,
             group_key: groupKey,

@@ -36,7 +36,12 @@ function link(p: Partial<TaskTemplatePart>): TaskTemplatePart {
  * The work order the fake core hands back. Lines accumulate in `labor`/`parts`
  * so the group assembled by applyTemplate can be inspected.
  */
-function harness(links: TaskTemplatePart[], vehicleGeneration: string | null = R56) {
+function harness(
+  links: TaskTemplatePart[],
+  vehicleGeneration: string | null = R56,
+  costs: Record<string, number> = {},
+) {
+  let purchasePricesCalls = 0;
   const labor: LaborLine[] = [];
   const parts: PartLine[] = [];
 
@@ -88,7 +93,13 @@ function harness(links: TaskTemplatePart[], vehicleGeneration: string | null = R
   const service = new WorkOrderLinesService(
     core as never,
     lineRepo() as never,
-    lineRepo() as never,
+    {
+      ...lineRepo(),
+      save: async (d: PartLine) => {
+        parts.push(d);
+        return d;
+      },
+    } as never,
     {
       // Distinguish the universal query (IsNull operator) from the generation one.
       find: async ({ where }: { where: { generation_id: unknown } }) => {
@@ -109,10 +120,17 @@ function harness(links: TaskTemplatePart[], vehicleGeneration: string | null = R
         };
       },
     } as never,
+    {
+      purchasePrices: async (ids: string[]) => {
+        purchasePricesCalls += 1;
+        return new Map(ids.map((id) => [id, costs[id] ?? null]));
+      },
+    } as never,
   );
 
   return {
     service,
+    purchasePricesCalls: () => purchasePricesCalls,
     labor,
     parts,
     pricedFor,
@@ -323,5 +341,48 @@ describe('choosing the generation a template is priced for', () => {
     const preview = await h.service.previewTemplate('wo1', 'tpl', owner);
     expect(h.pricedFor).toEqual([null]);
     expect(preview.parts.map((p) => p.name)).toEqual(['Фильтр MANN']);
+  });
+});
+
+describe('purchase price snapshot', () => {
+  const dto = { name: 'Фильтр', unit_price: 950, part_template_id: 'pt1' };
+
+  it('addPartLine with part_template_id copies the catalog purchase price', async () => {
+    const h = harness([], R56, { pt1: 520 });
+    await h.service.addPartLine('wo1', dto, owner);
+    expect(h.parts[0].purchase_price).toBe(520);
+  });
+
+  it('addPartLine without part_template_id leaves purchase price null', async () => {
+    const h = harness([], R56, { pt1: 520 });
+    await h.service.addPartLine('wo1', { name: 'Хомут', unit_price: 100 }, owner);
+    expect(h.parts[0].purchase_price).toBeNull();
+    expect(h.purchasePricesCalls()).toBe(0);
+  });
+
+  it('addPartLine with a catalog entry that has no purchase price stores null', async () => {
+    const h = harness([], R56, {});
+    await h.service.addPartLine('wo1', dto, owner);
+    expect(h.parts[0].purchase_price).toBeNull();
+  });
+
+  it('applyTemplate copies purchase price for each chosen part in one query', async () => {
+    const h = harness(
+      [
+        link({ part_template_id: 'pt1', part_template: partTemplate('pt1', 'Масло') }),
+        link({ part_template_id: 'pt2', part_template: partTemplate('pt2', 'Присадка') }),
+      ],
+      R56,
+      { pt1: 520 },
+    );
+    await h.service.applyTemplate('wo1', { template_id: 'tpl' }, owner);
+    expect(h.parts.map((p) => p.purchase_price)).toEqual([520, null]);
+    expect(h.purchasePricesCalls()).toBe(1);
+  });
+
+  it('the snapshot is taken when a master adds the part too', async () => {
+    const h = harness([], R56, { pt1: 520 });
+    await h.service.addPartLine('wo1', dto, { id: 'm1', role: 'master' });
+    expect(h.parts[0].purchase_price).toBe(520);
   });
 });
