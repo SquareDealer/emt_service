@@ -37,6 +37,7 @@ const TABS: { key: BreakdownKind; label: string }[] = [
   { key: 'labor', label: 'Работы' },
   { key: 'parts', label: 'Запчасти' },
   { key: 'vehicles', label: 'Машины' },
+  { key: 'clients', label: 'Клиенты' },
 ];
 const TOP_ROWS = 8;
 
@@ -47,7 +48,7 @@ function fmtCell(v: number | null, col: BreakdownCol): string {
 }
 
 /** Изменение к прошлому периоду. Направление несёт значок и знак, текст остаётся чернильным. */
-function Delta({ value, points }: { value: number | null; points?: boolean }) {
+function Delta({ value, points, title }: { value: number | null; points?: boolean; title: string }) {
   if (value === null) return <span className="an-delta faint">нет данных для сравнения</span>;
   const flat = Math.abs(value) < (points ? 0.0005 : 0.005);
   const Icon = flat ? Minus : value > 0 ? ArrowUpRight : ArrowDownRight;
@@ -55,7 +56,7 @@ function Delta({ value, points }: { value: number | null; points?: boolean }) {
     ? `${value < 0 ? '−' : '+'}${Math.abs(value * 100).toFixed(1).replace('.', ',')} п.п.`
     : signedPct(value);
   return (
-    <span className="an-delta" data-dir={flat ? 'flat' : value > 0 ? 'up' : 'down'}>
+    <span className="an-delta" title={title} data-dir={flat ? 'flat' : value > 0 ? 'up' : 'down'}>
       <Icon size={14} aria-hidden />
       {flat ? 'без изменений' : text}
     </span>
@@ -118,7 +119,7 @@ export function AnalyticsPage() {
       label: 'Валовая прибыль',
       value: rub(t.profit),
       d: delta(t.profit, prev.profit),
-      note: t.unknownCount ? 'не ниже — есть запчасти без закупки' : undefined,
+      missing: t.unknownCount,
     },
     {
       label: 'Маржа',
@@ -185,19 +186,27 @@ export function AnalyticsPage() {
         <dl className="an-kpi-row">
           {kpis.map((k) => (
             <div key={k.label} className="an-kpi" data-lead={k.lead || undefined}>
-              <dt>{k.label}</dt>
+              <dt>
+                {k.label}
+                {!!k.missing && (
+                  <button
+                    className="an-miss"
+                    title={`Не указана закупка: ${k.missing} запч. — прибыль занижена. Нажмите, чтобы заполнить`}
+                    aria-label={`Не указана закупка у ${k.missing} запчастей. Заполнить`}
+                    onClick={() => setFillOpen(true)}
+                  >
+                    <span aria-hidden>!</span>
+                    {k.missing}
+                  </button>
+                )}
+              </dt>
               <dd className="an-kpi-value">{k.value}</dd>
               <dd>
-                <Delta value={k.d} points={k.points} />
+                <Delta value={k.d} points={k.points} title={`Изменение ${cmp.label}`} />
               </dd>
-              {k.note && <dd className="an-kpi-note">{k.note}</dd>}
             </div>
           ))}
         </dl>
-        <p className="an-kpi-foot">
-          Изменение {cmp.label}
-          {cmp.partial && ' — период ещё идёт, сравниваем равное число дней'}
-        </p>
       </section>
 
       {t.orders === 0 ? (

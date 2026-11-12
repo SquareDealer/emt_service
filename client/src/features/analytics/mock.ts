@@ -115,10 +115,31 @@ const VEHICLES: [string, number][] = [
   ['Audi A3', 0.8],
 ];
 
-const CLIENTS = [
-  'Васильев А.', 'Гарипова Л.', 'Нуриев Р.', 'Соколова М.', 'Хайруллин Т.', 'Петров Д.',
-  'Ахметова Г.', 'Зайцев И.', 'Мухаметшин Р.', 'Орлова Е.', 'Сафин А.', 'Кузнецов П.',
+const SURNAMES = [
+  'Васильев', 'Гарипов', 'Нуриев', 'Соколов', 'Хайруллин', 'Петров', 'Ахметов', 'Зайцев',
+  'Мухаметшин', 'Орлов', 'Сафин', 'Кузнецов', 'Галиев', 'Морозов', 'Валиев', 'Егоров',
+  'Шакиров', 'Никитин', 'Закиров', 'Фёдоров', 'Каримов', 'Белов', 'Юсупов', 'Тихонов',
 ];
+const INITIALS = ['А. Р.', 'Д. И.', 'М. С.', 'Т. Н.', 'Р. Ф.', 'Е. В.'];
+
+interface ClientSpec {
+  name: string;
+  vehicle: string;
+  /** Постоянные клиенты приезжают чаще. */
+  weight: number;
+}
+
+function buildClients(rnd: () => number): ClientSpec[] {
+  const out: ClientSpec[] = [];
+  for (let i = 0; i < 84; i++) {
+    out.push({
+      name: `${SURNAMES[i % SURNAMES.length]} ${INITIALS[Math.floor(i / SURNAMES.length + i) % INITIALS.length]}`,
+      vehicle: pick(rnd, VEHICLES, (v) => v[1])[0],
+      weight: rnd() < 0.2 ? 4 : 1,
+    });
+  }
+  return out;
+}
 
 /** mulberry32 — маленький детерминированный PRNG, чтобы цифры не прыгали между рендерами. */
 function prng(seed: number): () => number {
@@ -146,6 +167,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 export function generateOrders(now = new Date()): MockOrder[] {
   const rnd = prng(20261112);
   const out: MockOrder[] = [];
+  const clients = buildClients(rnd);
   const DAYS = 800;
   let doc = 1040;
   let partSeq = 0;
@@ -165,6 +187,7 @@ export function generateOrders(now = new Date()): MockOrder[] {
       const closedAt = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour, Math.floor(rnd() * 60));
       if (closedAt > now) continue;
 
+      const client = pick(rnd, clients, (c) => c.weight);
       const jobCount = rnd() < 0.55 ? 1 : rnd() < 0.8 ? 2 : 3;
       const jobs = new Set<JobSpec>();
       while (jobs.size < jobCount) jobs.add(pick(rnd, JOBS, (j) => j.weight));
@@ -202,8 +225,8 @@ export function generateOrders(now = new Date()): MockOrder[] {
         id: `wo${doc}`,
         docNumber: doc++,
         closedAt,
-        client: CLIENTS[Math.floor(rnd() * CLIENTS.length)],
-        vehicle: pick(rnd, VEHICLES, (v) => v[1])[0],
+        client: client.name,
+        vehicle: client.vehicle,
         labor,
         parts,
         discount: round2(gross * (1 - k1)),

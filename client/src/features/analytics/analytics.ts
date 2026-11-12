@@ -231,7 +231,7 @@ export function series(orders: MockOrder[], p: Period): Bucket[] {
   });
 }
 
-export type BreakdownKind = 'labor' | 'parts' | 'vehicles';
+export type BreakdownKind = 'labor' | 'parts' | 'vehicles' | 'clients';
 
 export interface BreakdownCol {
   label: string;
@@ -328,8 +328,9 @@ export function breakdown(orders: MockOrder[], kind: BreakdownKind): Breakdown {
     };
   }
 
+  const byClient = kind === 'clients';
   const m = new Map<string, MockOrder[]>();
-  for (const o of orders) group(m, o.vehicle, () => [] as MockOrder[]).push(o);
+  for (const o of orders) group(m, byClient ? o.client : o.vehicle, () => [] as MockOrder[]).push(o);
   return {
     cols: [
       { label: 'Нарядов', kind: 'num', minor: true },
@@ -338,12 +339,14 @@ export function breakdown(orders: MockOrder[], kind: BreakdownKind): Breakdown {
       { label: 'Маржа', kind: 'pct', minor: true },
       { label: 'Средний чек', kind: 'money', minor: true },
     ],
-    defaultSort: 2,
+    defaultSort: byClient ? 1 : 2,
     rows: [...m].map(([name, list]) => {
       const t = totals(list);
+      const last = list.reduce((a, o) => (o.closedAt > a ? o.closedAt : a), list[0].closedAt);
       return {
         key: name,
         name,
+        sub: byClient ? `${list[0].vehicle} · закрыт ${f(last, 'd MMM')}` : undefined,
         vals: [t.orders, t.revenue, t.profit, t.margin, t.avgCheck],
         revenue: t.revenue,
         unknown: t.unknownCount,
