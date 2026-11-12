@@ -27,7 +27,10 @@
 - п.1: «История» = импорт + закрытые в CRM (`imported_deals_* + closed_orders_*`), иначе у старых клиентов история обнулится.
 - п.3: «галочки» = стрелки `<select>` (нативная стрелка прижата к краю у `select.input` и `.unit-select`).
 - п.8: каталог работ остаётся общим для всех поколений (инвариант из `CLAUDE.md`); «добавить работу в поколение» создаёт работу и сразу задаёт её цену для выбранного поколения. Отдельной видимости «работа только у R56» нет — вместо неё фильтр «Со своей ценой».
-- п.4: центрируется логотип только в заказ-наряде; шапка калькуляции (образец `Васильев.pdf`) не трогается.
+
+**Уточнения заказчика (вторая итерация):**
+- Добавление, редактирование и удаление шаблонных работ переезжает из «Настроек» в «Прайс-лист»; доступно только `owner` и `master_receptionist` (и в UI, и на сервере). Секция «Шаблоны работ» из «Настроек» удаляется.
+- В «Предварительной калькуляции» текст `STO` заменяется логотипом автосервиса, тоже по центру — шапка общая с заказ-нарядом.
 
 ## Global Constraints
 
@@ -48,7 +51,8 @@
 2. **Клиент с импортной историей и закрытыми нарядами в CRM** — суммируются оба источника; `count`/`sum` из Postgres приходят строками и не должны склеиваться (`"2" + 3`) (тест в задаче 1).
 3. **Одиннадцатый наряд перетащили в «Выдана»** — самый старый уходит из колонки и на клиенте (оптимистично), и на сервере; остальные колонки не обрезаются (тесты в задаче 2).
 4. **Машина без поколения или с поколением, убранным из справочника** — модалка прайса в наряде открывается на «Базовые цены» / на поколении машины, явный выбор «базовые» не подменяется поколением машины (тесты в задаче 8).
-5. **Каталог больше 100 запчастей** — подбор запчасти находит позицию из «хвоста»; очистка цены при правке шлёт `null`, а не `0` (тесты в задачах 6 и 10).
+5. **Мастер открывает `/price-list` прямой ссылкой** — видит цены, но ни одной кнопки записи; сервер отвечает 403 на запись независимо от UI (тест в задаче 9).
+6. **Каталог больше 100 запчастей** — подбор запчасти находит позицию из «хвоста»; очистка цены при правке шлёт `null`, а не `0` (тесты в задачах 6 и 10).
 
 ---
 
@@ -170,27 +174,28 @@ it("404s for another master's order", ...);
 
 ---
 
-### Task 4: Логотип заказ-наряда по центру
+### Task 4: Логотип по центру в обоих документах (заказ-наряд и калькуляция)
 
 **Files:**
-- Modify: `src/work-orders/pdf/work-order-pdf.service.ts:144-156,345-352`
+- Modify: `src/work-orders/pdf/work-order-pdf.service.ts:144-156,196-201,345-352`
 - Test: `src/work-orders/pdf/work-order-pdf.service.spec.ts`
 
 **Interfaces:**
-- Produces: `orderHeaderColumns(logo: string | null, s: DocSettings, companyName: string): Column[]`.
+- Produces: `headerColumns(logo: string | null, s: DocSettings, companyName: string): Column[]` — одна шапка на оба документа.
 
 - [ ] **Step 1: Падающий тест:**
 
 ```ts
-const cols = svc.orderHeaderColumns('data:image/png;base64,AAAA', settings, 'EMT');
+const cols = svc.headerColumns('data:image/png;base64,AAAA', settings, 'EMT');
 expect(cols.map((c) => (c as { width: unknown }).width)).toEqual(['*', 130, '*']);
 expect(cols[1]).toMatchObject({ image: 'data:image/png;base64,AAAA', alignment: 'center' });
-expect(svc.orderHeaderColumns(null, settings, 'EMT').map((c) => (c as { width: unknown }).width)).toEqual(['*', 130, '*']);
+expect(svc.headerColumns(null, settings, 'EMT').map((c) => (c as { width: unknown }).width)).toEqual(['*', 130, '*']);
+expect(JSON.stringify(svc.headerColumns(null, settings, 'EMT'))).not.toContain('STO'); // без файла логотипа — пусто, не заглушка
 ```
 
-- [ ] **Step 2:** FAIL → **Step 3:** реализовать: `[пустая '*', логотип 130 (или пустой текст той же ширины), реквизиты '*' с выравниванием вправо]`. Две равные `'*'`-колонки по бокам — единственный способ получить геометрический центр при блоке реквизитов справа. `companyBlock` для калькуляции не менять.
-- [ ] **Step 4:** PASS. Глазами: собрать PDF скриптом на `dist` (фейковый наряд → `build(wo, settings, 'order')` → файл в scratchpad), открыть, убедиться, что реквизиты не налезают на логотип при длинном адресе.
-- [ ] **Step 5:** commit `fix(pdf): логотип заказ-наряда по центру`.
+- [ ] **Step 2:** FAIL → **Step 3:** реализовать: `[пустая '*', логотип 130 (или пустой текст той же ширины), реквизиты '*' с выравниванием вправо]`. Две равные `'*'`-колонки по бокам — единственный способ получить геометрический центр при блоке реквизитов справа. `definition()` (калькуляция) и `orderDefinition()` обе берут шапку из `headerColumns(this.logo(), s, companyName)`; литерал `'STO'` из сервиса исчезает (`grep -n "'STO'" src/work-orders/pdf` → пусто).
+- [ ] **Step 4:** PASS. Глазами: собрать PDF скриптом на `dist` (фейковый наряд → `build(wo, settings, 'order')` и `build(wo, settings, 'calc')` → файлы в scratchpad), открыть оба, убедиться, что логотип по центру и реквизиты не налезают на него при длинном адресе.
+- [ ] **Step 5:** commit `fix(pdf): логотип по центру в заказ-наряде и калькуляции`.
 
 ---
 
@@ -311,7 +316,7 @@ it('a car without a generation defaults to base', ...);          // vehicle.gene
 - Create: `client/src/components/GenerationPicker.tsx`, `client/src/components/generation-picker.css`
 - Create: `client/src/features/price-list/GenerationsModal.tsx`, `client/src/features/price-list/WorkFormModal.tsx`, `client/src/features/price-list/works.css`
 - Create: `client/src/features/work-orders/PriceListPickerModal.tsx`
-- Modify: `client/src/features/price-list/PriceListPage.tsx`, `client/src/features/work-orders/WorkOrderPage.tsx:101,391-402,671-676`, `client/src/features/work-orders/ApplyTemplateModal.tsx`, `client/src/lib/api.ts`
+- Modify: `client/src/features/price-list/PriceListPage.tsx`, `client/src/features/settings/SettingsPage.tsx:95-112,226-268`, `client/src/lib/roles.ts`, `client/src/lib/roles.spec.ts` (создать, если нет), `client/src/features/work-orders/WorkOrderPage.tsx:101,391-402,671-676`, `client/src/features/work-orders/ApplyTemplateModal.tsx`, `client/src/lib/api.ts`
 - Test: `client/e2e/price-list-works.spec.ts`
 - Не трогать: `PartsCatalog.tsx`, `TemplatePartsModal.tsx`, `price-list.css` (зона субагента B и задач 5–6).
 
@@ -323,8 +328,10 @@ it('a car without a generation defaults to base', ...);          // vehicle.gene
   - `GenerationPicker({ value: string | null; onChange(id: string | null): void; allowBase?: boolean; onManage?: () => void })` — кнопка с текущим значением → выпадающая панель: поиск, «Базовые цены (для всех)» при `allowBase`, список по маркам, внизу «Управлять поколениями» при `onManage`.
   - `PriceListPickerModal({ open; workOrder: WorkOrder; onClose; onPick(templateId: string, generationId: string | null): void })`.
   - `ApplyTemplateModal` получает проп `generationId: string | null`.
+  - `canManageCatalog(role: UserRole | undefined): boolean` в `lib/roles.ts` — `true` только для `owner` и `master_receptionist` (если такой хелпер уже есть под другим именем — использовать его, не плодить второй).
 
 - [ ] **Step 1: vitest** `generations.spec.ts`: `groupGenerations(list, 'r56')` → одна группа MINI с одним элементом; `''` → все, сгруппированы по `make`; поиск по годам `'2014'`; `genLabel` для `code: null`. FAIL → реализовать → PASS.
+- [ ] **Step 1b: vitest** `roles.spec.ts`: `canManageCatalog('owner')` и `('master_receptionist')` → `true`; `('master')` и `(undefined)` → `false`.
 - [ ] **Step 2: Падающий e2e** `price-list-works.spec.ts` (стабы как в `mobile.spec.ts`, десктоп):
 
 ```ts
@@ -332,6 +339,9 @@ test('add a work for the selected generation', ...);
 // выбрать R56 в GenerationPicker → «Добавить работу» → имя «Замена свечей», для поколения: часы 1.5, цена 4000 → «Сохранить»
 // POST /api/price-list/works тело: { name:'Замена свечей', default_hours:null, default_price:null, generation_id:'g-r56', hours:1.5, price:4000 }
 test('edit a work: rename + base price', ...);          // PATCH /api/task-templates/t1 { name, default_hours, default_price }
+test('a work can be removed from the price list after confirmation', ...); // DELETE /api/task-templates/t1 только после «Убрать» в подтверждении
+test('master sees prices but no add / edit / remove / manage controls', ...); // auth/me → role 'master', прямой заход на /price-list
+test('settings no longer has the «Шаблоны работ» section', ...);            // /settings: заголовка нет, запроса /api/task-templates нет
 test('generations can be added and retired from the manager', ...); // POST /api/vehicle-generations {make:'BMW',model:'3',code:'E90',years:'2005–2012'}; DELETE для retire
 test('work order: picking a work asks for a generation, defaulting to the car\'s', ...);
 // наряд с vehicle.generation_id 'g-r56' → «Из прайса» → в пикере выбран R56 → сменить на F56 → клик по работе
@@ -341,8 +351,10 @@ test('a car whose generation is retired still opens on that generation', ...); /
 ```
 
 - [ ] **Step 3: Реализация — что решено:**
-  - **PriceListPage (вкладка «Работы»):** `<select>` поколения → `GenerationPicker allowBase onManage`; поиск по названию работы; при выбранном поколении `seg` «Все работы / Со своей ценой»; кнопка «Добавить работу» (`btn-primary`); в строке — `Pencil` → `WorkFormModal`. Пустое состояние больше не отсылает в Настройки. Инлайн-правка часов/цены в строке остаётся как есть.
-  - **WorkFormModal:** поля «Название», «Базовые норм.ч.», «Базовая цена»; если выбрано поколение — блок «Для {genLabel}»: часы, цена, подпись источника. Создание — один `api.createWork`. Правка — `api.updateTemplate` + `setPrice`/`clearPrice` (clear, когда обе цифры поколения пусты и переопределение было). Пустое поле → `null`. В режиме правки — «Убрать из прайса» (`api.deleteTemplate`, это деактивация) через подтверждение. Инвалидация `['price-list']` и `['templates']`.
+  - **PriceListPage (вкладка «Работы»):** `<select>` поколения → `GenerationPicker allowBase onManage`; поиск по названию работы; при выбранном поколении `seg` «Все работы / Со своей ценой»; кнопка «Добавить работу» (`btn-primary`); в строке — `Pencil` → `WorkFormModal`. Пустое состояние больше не отсылает в Настройки. Инлайн-правка часов/цены в строке остаётся как есть. Все органы записи (добавить, карандаш, удаление, инлайн-поля, «Скопировать из…», «Управлять поколениями») рендерятся только при `canManageCatalog(user?.role)`; мастер видит прайс как таблицу для чтения.
+  - **SettingsPage:** секция «Шаблоны работ» удаляется целиком вместе с `mAddTpl`, `mDelTpl`, состоянием `tName/tHours/tPrice` и запросом `['templates']`; подзаголовок страницы — «Ставка нормо-часа и реквизиты для документов». Прайс-лист — единственное место, где работы создаются, правятся и удаляются.
+  - **Сервер** уже закрыт: `POST/PATCH/DELETE /task-templates` и вся запись в `/price-list` стоят под `@Roles('owner','master_receptionist')` — перепроверить, что новый `POST /price-list/works` из задачи 8 под тем же декоратором.
+  - **WorkFormModal:** поля «Название», «Базовые норм.ч.», «Базовая цена»; если выбрано поколение — блок «Для {genLabel}»: часы, цена, подпись источника. Создание — один `api.createWork`. Правка — `api.updateTemplate` + `setPrice`/`clearPrice` (clear, когда обе цифры поколения пусты и переопределение было). Пустое поле → `null`. В режиме правки — «Убрать из прайса» (`api.deleteTemplate`, это деактивация: исторические наряды ссылаются на шаблон) через подтверждение; то же действие — иконкой `Trash2` в строке списка. Инвалидация `['price-list']` и `['templates']`.
   - **GenerationsModal:** `api.vehicleGenerations(true)`; поиск; группы по маркам; строка: модель · код · годы, `Pencil` (инлайн-правка), «Убрать»/«Вернуть» (`deactivate` / `update({active:true})`), убранные — приглушённо в конце группы; форма добавления (марка с подсказками из существующих через `<datalist>`, модель, код, годы). Ошибки сервера («Такое поколение уже есть…») — тостом. Инвалидация `['vehicle-generations']`. Роль `master` кнопку управления не видит (хелпер ролей — в `lib/roles.ts`).
   - **WorkOrderPage:** `<select> + Из прайса…` → кнопка `btn btn-default btn-sm` «Из прайса» (вызывает `keep()` перед открытием, как сейчас). Состояние `applyTpl: { templateId: string; generationId: string | null } | null`. Запрос `['templates']` на странице больше не нужен — удалить, если других потребителей нет.
   - **PriceListPickerModal** (ширина 720): сверху `GenerationPicker allowBase` (стартовое значение `workOrder.vehicle?.generation_id ?? null`, справочник с `all=1`, `onManage` по роли) и поиск с автофокусом; список `api.priceList(generationId)`: название, норм.ч., цена, тег источника («своя / базовая / по ставке»), число запчастей; клик или Enter по строке → `onPick`. Если выбранное поколение ≠ поколению машины — строка-предупреждение «Цены для {X}, а в наряде {vehicleLabel}».
@@ -412,5 +424,5 @@ test('picked part + role + qty → PUT attach', ...);
 - [ ] Влить ветки субагентов A и B (общих файлов нет; при конфликте в `client/src/lib/api.ts` — оставить обе правки).
 - [ ] Полный прогон всех проверок из задачи 7, включая `npm run build` обоих проектов.
 - [ ] Ручной прогон в живом приложении, если доступен Postgres (`docker compose up -d`): закрыть наряд → «История» клиента +1; 11 закрытых → на доске 10; оба PDF на открытом наряде; работа из прайса с другим поколением.
-- [ ] `CLAUDE.md`: API (`/price-list/works`, `generation_id` у preview/apply, `/:id/pdf` в любом статусе), структура frontend (новые компоненты, `lib/generations.ts`, `lib/parts.ts`), числа тестов, раздел «Состояние».
+- [ ] `CLAUDE.md`: шаблоны работ ведутся в «Прайс-листе», а не в «Настройках»; логотип в шапке обоих PDF; API (`/price-list/works`, `generation_id` у preview/apply, `/:id/pdf` в любом статусе), структура frontend (новые компоненты, `lib/generations.ts`, `lib/parts.ts`), числа тестов, раздел «Состояние».
 - [ ] commit `docs: CLAUDE.md после правок прайса и UI`; `git push -u origin claude/trusting-darwin-ygnzp3`.
