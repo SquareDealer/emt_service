@@ -1,6 +1,8 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
-import { parseEdges, parsePrev, parseRange } from './analytics.controller';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { SetPartCostsDto, parseEdges, parsePrev, parseRange } from './analytics.controller';
 import { PricingService } from '../work-orders/pricing.service';
 import { WorkOrder } from '../entities/work-order.entity';
 import { LaborLine } from '../entities/labor-line.entity';
@@ -214,6 +216,18 @@ describe('AnalyticsService: закупки', () => {
     expect(log.updates).toEqual([['a', { purchase_price: 700 }]]);
   });
 
+  it('setPartCosts: повтор part_line_id → 400, ничего не записано', async () => {
+    const { service, log } = costSetup({ known: ['a'] });
+    await expect(
+      service.setPartCosts([
+        { part_line_id: 'a', purchase_price: 1 },
+        { part_line_id: 'a', purchase_price: 2 },
+      ]),
+    ).rejects.toThrow(/part_line_id повторяется/);
+    expect(log.transactions).toBe(0);
+    expect(log.updates).toEqual([]);
+  });
+
   it('setPartCosts(null) очищает закупку', async () => {
     const { service, log } = costSetup({ known: ['a'] });
     await service.setPartCosts([{ part_line_id: 'a', purchase_price: null }]);
@@ -233,6 +247,37 @@ describe('AnalyticsService: закупки', () => {
   it('partCosts для несуществующего наряда → 404', async () => {
     const { service } = costSetup({ woExists: false });
     await expect(service.partCosts('нет')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('SetPartCostsDto', () => {
+  const U1 = '11111111-1111-4111-8111-111111111111';
+  const U2 = '22222222-2222-4222-8222-222222222222';
+  const check = async (body: unknown) => (await validate(plainToInstance(SetPartCostsDto, body))).length;
+  const item = (extra: object = {}) => ({ part_line_id: U1, purchase_price: 100, ...extra });
+
+  it('корректное тело проходит, 0 и явный null допустимы', async () => {
+    expect(await check({ items: [item(), item({ part_line_id: U2, purchase_price: 0 })] })).toBe(0);
+    expect(await check({ items: [item({ purchase_price: null })] })).toBe(0);
+  });
+  it('отсутствующее purchase_price не проходит', async () => {
+    expect(await check({ items: [{ part_line_id: U1 }] })).toBeGreaterThan(0);
+  });
+  it('отрицательное, строка и NaN-подобное не проходят', async () => {
+    expect(await check({ items: [item({ purchase_price: -1 })] })).toBeGreaterThan(0);
+    expect(await check({ items: [item({ purchase_price: '5' })] })).toBeGreaterThan(0);
+  });
+  it('part_line_id должен быть uuid', async () => {
+    expect(await check({ items: [item({ part_line_id: 'abc' })] })).toBeGreaterThan(0);
+  });
+  it('пустой список и больше 200 элементов не проходят, 200 проходит', async () => {
+    expect(await check({ items: [] })).toBeGreaterThan(0);
+    expect(await check({ items: Array.from({ length: 201 }, () => item()) })).toBeGreaterThan(0);
+    expect(await check({ items: Array.from({ length: 200 }, () => item()) })).toBe(0);
+  });
+  it('items не массив → ошибка', async () => {
+    expect(await check({})).toBeGreaterThan(0);
+    expect(await check({ items: 'x' })).toBeGreaterThan(0);
   });
 });
 

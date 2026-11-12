@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { WorkOrder } from '../entities/work-order.entity';
@@ -133,7 +133,10 @@ export class AnalyticsService {
   async setPartCosts(
     items: { part_line_id: string; purchase_price: number | null }[],
   ): Promise<{ updated: number }> {
-    const ids = [...new Set(items.map((i) => i.part_line_id))];
+    const ids = items.map((i) => i.part_line_id);
+    if (new Set(ids).size !== ids.length) {
+      throw new BadRequestException('part_line_id повторяется');
+    }
     const found = await this.partRepo.find({ where: { id: In(ids) }, select: { id: true } });
     const known = new Set(found.map((p) => p.id));
     const missing = ids.filter((id) => !known.has(id));

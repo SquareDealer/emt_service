@@ -15,9 +15,9 @@ import {
   ArrayMinSize,
   IsArray,
   IsNumber,
-  IsOptional,
   IsUUID,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { Roles } from '../auth/roles.decorator';
@@ -95,7 +95,8 @@ export class PartCostItemDto {
   @IsUUID()
   part_line_id: string;
 
-  @IsOptional()
+  // Поле обязательно: пропускается проверка только для явного null (очистка закупки).
+  @ValidateIf((o: PartCostItemDto) => o.purchase_price !== null)
   @IsNumber({ allowNaN: false, allowInfinity: false })
   @Min(0)
   purchase_price: number | null;
@@ -117,10 +118,13 @@ export class AnalyticsController {
   constructor(private readonly analytics: AnalyticsService) {}
 
   @Get('summary')
+  // Параметры типизированы unknown намеренно: при типе string ValidationPipe
+  // (transform: true) склеивает повтор `?edges=a&edges=b` в 'a,b' через String(),
+  // и парсер не увидит массив, который должен дать 400.
   summary(
-    @Query('edges') edges?: string,
-    @Query('prev_from') prevFrom?: string,
-    @Query('prev_to') prevTo?: string,
+    @Query('edges') edges?: unknown,
+    @Query('prev_from') prevFrom?: unknown,
+    @Query('prev_to') prevTo?: unknown,
   ): Promise<AnalyticsSummary> {
     return this.analytics.summary(parseEdges(edges), parsePrev(prevFrom, prevTo));
   }
