@@ -29,6 +29,7 @@ import { AddLineDiscountsAndManufacturer1719300000000 } from './migrations/17193
 import { AddPriceListAndPartTemplates1719400000000 } from './migrations/1719400000000-AddPriceListAndPartTemplates';
 import { AddLineGroupsAndTemplateParts1719500000000 } from './migrations/1719500000000-AddLineGroupsAndTemplateParts';
 import { AddTaskTemplatePartSlot1719600000000 } from './migrations/1719600000000-AddTaskTemplatePartSlot';
+import { AddPartPurchasePrice1719700000000 } from './migrations/1719700000000-AddPartPurchasePrice';
 
 loadEnv();
 
@@ -64,6 +65,7 @@ export const migrations = [
   AddPriceListAndPartTemplates1719400000000,
   AddLineGroupsAndTemplateParts1719500000000,
   AddTaskTemplatePartSlot1719600000000,
+  AddPartPurchasePrice1719700000000,
 ];
 
 /** Standalone DataSource for the TypeORM CLI (migrations). */

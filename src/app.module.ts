@@ -17,6 +17,7 @@ import { SettingsModule } from './settings/settings.module';
 import { SearchModule } from './search/search.module';
 import { HealthModule } from './health/health.module';
 import { SeedModule } from './seed/seed.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { SeedModule } from './seed/seed.module';
     SearchModule,
     HealthModule,
     SeedModule,
+    AnalyticsModule,
   ],
   providers: [
     {

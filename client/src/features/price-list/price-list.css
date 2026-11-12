@@ -10,6 +10,7 @@
 .pl-grid { grid-template-columns: minmax(0, 1fr) 88px 104px 140px 72px 44px; }
 .tp-grid { grid-template-columns: minmax(0, 1fr) 180px 72px 96px 44px; }
 .parts-grid { grid-template-columns: minmax(0, 1fr) 140px 140px 128px 76px; }
+.parts-grid[data-cost] { grid-template-columns: minmax(0, 1fr) 140px 140px 128px 128px 76px; }
 
 /* Section heading above a panel inside the «запчасти работы» modal. */
 .tp-title { padding: var(--sp-2) var(--sp-1) var(--sp-1); }
@@ -93,4 +94,13 @@
   .tp-attach > :first-child { flex-basis: 100%; }
   .tp-attach > :nth-child(4) { display: none; }
   .tp-grid > span:nth-child(3)::before { content: '× '; color: var(--faint); }
+
+  /* owner's catalog: «Закупка» is the 4th cell, the sale price moves to the 5th */
+  .parts-grid[data-cost] > :nth-child(4) { order: 3; flex: 0 1 auto; margin-left: 0; text-align: left; }
+  .parts-grid[data-cost] > :nth-child(4)::before { content: 'закупка '; color: var(--faint); }
+  .parts-grid[data-cost] > :nth-child(5) { order: 1; flex: 0 0 auto; margin-left: auto; text-align: right; }
+  .parts-grid[data-cost] > input:nth-child(4) { flex: 1 1 30%; }
+  .parts-grid[data-cost] > .qty-cell { flex: 0 0 8rem; }
 }
+
+.parts-grid .cell-input[aria-invalid='true'] { box-shadow: inset 0 0 0 1px var(--danger); }

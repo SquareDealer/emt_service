@@ -13,6 +13,7 @@ import { PricingService } from './pricing.service';
 import { WorkOrderPdfService } from './pdf/work-order-pdf.service';
 import { SettingsModule } from '../settings/settings.module';
 import { TaskTemplatesModule } from '../task-templates/task-templates.module';
+import { PartTemplatesModule } from '../part-templates/part-templates.module';
 import { UsersModule } from '../users/users.module';
 
 @Module({
@@ -20,6 +21,7 @@ import { UsersModule } from '../users/users.module';
     TypeOrmModule.forFeature([WorkOrder, LaborLine, PartLine, Vehicle, TaskTemplatePart]),
     SettingsModule,
     TaskTemplatesModule,
+    PartTemplatesModule,
     UsersModule,
   ],
   providers: [

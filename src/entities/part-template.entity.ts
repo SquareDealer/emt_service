@@ -36,6 +36,18 @@ export class PartTemplate {
   })
   default_price: number | null;
 
+  /** Закупка за единицу. Только для владельца — select:false, см. AnalyticsService. */
+  @Column({
+    name: 'purchase_price',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    nullable: true,
+    select: false,
+    transformer: numericTransformer,
+  })
+  purchase_price?: number | null;
+
   @Column({ type: 'boolean', default: true })
   active: boolean;
 }

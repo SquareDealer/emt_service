@@ -86,6 +86,18 @@ export class PartLine {
   @Column({ type: 'int', default: 0 })
   sort: number;
 
+  /** Закупка за единицу. Только для владельца — select:false, см. AnalyticsService. */
+  @Column({
+    name: 'purchase_price',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    nullable: true,
+    select: false,
+    transformer: numericTransformer,
+  })
+  purchase_price?: number | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   created_at: Date;
 }

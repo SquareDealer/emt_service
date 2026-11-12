@@ -3,6 +3,8 @@
 CRM для СТО (профиль — MINI, но принимают любые машины), владелец + мастера/приёмщики (роли),
 ~300 клиентов. Спека и артефакты: `spec.md`, `data-model.md`, `plan.md`, `checks.md`.
 Стратегия/визуал: `PRODUCT.md`, `DESIGN.md`.
+**Журнал известных дыр — `docs/known-issues.md`:** нашёл неисправленный дефект, гонку или пробел в
+тестах — допиши строку `KI-N`; устранил — зачеркни строку и укажи коммит (не удаляй).
 
 ## Стек
 
@@ -82,6 +84,12 @@ Settings(key-value: labor_rate, company_*, vat_rate, расписание)
   только с `assigned_master_id == он сам` (чужой по id → 404, не 403). Скоупинг в
   `WorkOrdersCoreService` (`scope` + `assertAccess`), не на фронте. Мастер создаёт/копирует наряд →
   авто-назначается себе. `users.is_active=false` → запрет логина.
+- **Закупочная цена** (`part_lines.purchase_price`, `part_templates.purchase_price`) — `select: false`,
+  читается только через `addSelect`, видит и пишет **только владелец** (403 остальным). Снимок
+  копируется в строку при добавлении/разворачивании шаблона/`duplicate`. `normalize()` каталога её не
+  трогает. `save()` частичной сущности колонку не затирает (проверено на живой БД), но **выкидывает её
+  из возвращаемой сущности** — поэтому `create`/`update` каталога перечитывают строку через `findOne`.
+  Правка закупки закрытого наряда `total_frozen` не двигает. Сценарий — `scripts/verify-analytics.mjs` (AC-11; только dev-база, нужен `ALLOW_DESTRUCTIVE_CHECK=1`, за собой деактивирует созданное).
 - **Видимость резервов — другая:** `user_id IS NULL OR user_id = viewer`. Общий резерв обязан быть
   виден мастеру, иначе он перезапишет занятый подъёмник.
 
@@ -102,6 +110,7 @@ migrations/      Init … AddWorkOrderComplaintRecommendation (MVP),
                  1719400000000 AddPriceListAndPartTemplates
                  1719500000000 AddLineGroupsAndTemplateParts
                  1719600000000 AddTaskTemplatePartSlot       — роль детали в работе
+                 1719700000000 AddPartPurchasePrice          — закупка за единицу (part_lines, part_templates)
 common/          phone.util, numeric.transformer, vehicle-label.util, rubles-in-words, public.decorator
 auth/            JWT, глобальный JwtAuthGuard + @Public(); @CurrentUser(), @Roles()+RolesGuard
 users/  clients/ (+import)  vehicles/  vehicle-generations/  part-templates/  calendar-blocks/
@@ -111,6 +120,7 @@ work-orders/     work-orders-core.service (загрузка/скоупинг/rec
                  work-orders.service (наряд целиком, календарь, архив, duplicate),
                  work-order-lines.service (строки, блоки, разворачивание шаблона),
                  pricing.service, pdf/work-order-pdf.service
+analytics/       сводка владельца: analytics-calc (чистые расчёты), service (SQL), controller (@Roles('owner'))
 settings/  search/  seed/  assets/fonts/ (DejaVu — кириллица в PDF, читаются из process.cwd())
 ```
 
@@ -126,10 +136,14 @@ API (всё под JWT кроме `/health`, `/auth/login`):
   `POST /works` — работа + цена поколения одной транзакцией)
 - `template-preview` / `apply-template` принимают `generation_id`: нет параметра → поколение машины,
   `base` (в query) / `null` (в теле) → базовые цены, uuid → это поколение
+- `/analytics` (только owner): `/summary?edges=…[&prev_from&prev_to]`, `/missing-costs?from&to`,
+  `/part-costs/:workOrderId`, `PATCH /part-costs` (`{items:[{part_line_id, purchase_price}]}`)
 - `/calendar-blocks`, `/task-templates`, `/users`, `/settings`, `/search?q=`
 
 Запись в каталоги (`task-templates`, `part-templates`, `vehicle-generations`, `price-list`) —
-`@Roles('owner','master_receptionist')`; чтение открыто всем. Удаление шаблонов и поколений —
+`@Roles('owner','master_receptionist')`; чтение открыто всем — **кроме `purchase_price`**: его читает и
+пишет только `owner` (`assertCostAccess` → 403 даже на `null`; `findAll`/`findOne` получают `withCost`
+только для владельца). Удаление шаблонов и поколений —
 **деактивация** (`active=false`), на них ссылаются исторические наряды.
 
 **PDF** (pdfmake, оба документа в `pdf/work-order-pdf.service.ts`):
@@ -148,17 +162,21 @@ API (всё под JWT кроме `/health`, `/auth/login`):
 lib/      api.ts (fetch+JWT), auth.tsx, roles.ts, intake.tsx (IntakeContext — открыть приём со слотом),
           types.ts, schedule.ts (геометрия таймлайна, dayRangeIso, blockToEvent, parseEventId),
           format.ts (зеркало PricingService + vehicleLabel + estimateGroups + clientDeals + capClosed),
-          generations.ts (genLabel, groupGenerations), parts.ts (filterParts, manufacturersOf),
+          generations.ts (genLabel, groupGenerations), parts.ts (filterParts, manufacturersOf, partTemplateBody, unitLabel),
+          price.ts (parsePrice — ввод закупки, ≤ 2 знаков, MAX_PURCHASE_PRICE; analytics/query.ts ре-экспортирует),
           toast.tsx, theme.ts
 components/ GenerationPicker (поиск по справочнику поколений, общий для прайса и наряда),
           AppShell (nav скрывает «Настройки»/«Прайс-лист» у master, «Импорт» у не-owner),
           GlobalSearch (⌘K), IntakeModal, VehicleFields (общие поля ТС), ScheduleTimeline, ui.tsx
 features/ auth/ clients/ board/ archive/ import/ settings/
+          analytics/ AnalyticsPage (сводка владельца) + query.ts (границы корзин, период сравнения, parsePrice)
+                      + view.ts (ответ API → корзины/разрезы) + CostFillModal (дозаполнение закупки)
           calendar/  CalendarPage + SlotMenu (запись/резерв) + BlockModal
           price-list/ PriceListPage + PartsCatalog + TemplatePartsModal + PartPicker (подбор детали)
                       + WorkFormModal (работа: добавить/править/убрать) + GenerationsModal
           work-orders/ WorkOrderPage + PriceListPickerModal (работа из прайса с выбором поколения)
                        + ApplyTemplateModal + DuplicateModal
+                       + PartCostsPanel (закупка запчастей наряда, только владелец; part-costs.ts)
 index.css дизайн-токены (OKLCH, light/dark via [data-theme]), компонентные классы
 ```
 
@@ -166,6 +184,10 @@ index.css дизайн-токены (OKLCH, light/dark via [data-theme]), ком
 Полная спека — `DESIGN.md`. Навигация на наряд передаёт `state.back={to,label}`.
 
 Тонкости, которые легко сломать:
+- **Закупка и роли:** не-владелец никогда не отправляет ключ `purchase_price` — сервер отвечает 403 даже на
+  `null`; владелец шлёт его только когда значение задано (создание) или изменилось (правка) — см. `partTemplateBody`.
+- **Закупки наряда:** ключ запроса `PartCostsPanel` включает `linesSignature(lines)` (id + количество строк),
+  иначе после добавления/правки запчасти панель показывала бы список закупок со старым составом.
 - **`ScheduleTimeline`:** `panEnabled = !selectable`; pan делает `setPointerCapture` на
   скролл-контейнере, поэтому `pointerup` ретаргетится на него — клик по пустому месту ловится
   внутри pan-обработчиков (цель запоминается на `pointerdown`), а индекс дня берётся из `data-di`,
@@ -196,30 +218,39 @@ index.css дизайн-токены (OKLCH, light/dark via [data-theme]), ком
 ## Проверки / тесты
 
 ```bash
-npx tsc --noEmit && npm test && npm run lint -- --max-warnings=0 && npm run build   # backend, 188 тестов
-cd client && npm run typecheck && npm run lint && npm test && npm run build          # client, 49 тестов
-cd client && npx playwright test                                                     # 49 e2e
+npx tsc --noEmit && npm test && npm run lint -- --max-warnings=0 && npm run build   # backend, 288 тестов
+cd client && npm run typecheck && npm run lint && npm test && npm run build          # client, 115 тестов
+cd client && npx playwright test                                                     # 57 e2e
 ```
 - **Конвенция:** чистые юниты с рукописными фейковыми репозиториями (`as never`), без
   `@nestjs/testing` и supertest. См. `users.service.spec.ts`.
-- Backend: `pricing.service` (30 — включая инвариант печатного блока итогов), `work-orders.service`
-  (22 — скоупинг, заморозка, копия), `work-order-lines.service` (13 — разворачивание шаблона, роли),
-  `pdf/work-order-pdf.service` (18 — колонки и блоки, не байты), `price-resolution` (11),
-  `calendar-blocks` (15 — пересечение интервалов, видимость), `users`, `settings`, `clients`,
-  `clients-import`, `rubles-in-words`, `vehicle-label`.
+- Backend (288 в 19 наборах): `pricing.service` (30 — включая инвариант печатного блока итогов),
+  `work-orders.service` (28 — скоупинг, заморозка, копия), `work-order-lines.service` (24 — разворачивание
+  шаблона, роли, закупка в строке), `pdf/work-order-pdf.service` (23 — колонки и блоки, не байты),
+  `price-resolution` (11), `price-list.service` (7), `calendar-blocks` (15 — пересечение интервалов,
+  видимость), `analytics-calc` (22 — раскладка скидки, итоги, разрезы), `analytics.service` (45 — SQL-окна,
+  DTO закупок, парсеры периода), `analytics.guards` (2 — owner-only на контроллере),
+  `part-templates.service` (14), `part-templates.controller` (11 — `assertCostAccess`, `withCost` только
+  владельцу, предел цены), `entities/purchase-price` (2), `users` (9), `settings` (5), `clients` (7),
+  `clients-import` (19), `rubles-in-words` (9), `vehicle-label` (5).
 - Client (vitest): `lib/format.spec.ts` и jest-спека `PricingService` читают **одну** таблицу
   `client/src/lib/pricing-fixtures.json` — расхождение зеркал роняет один из наборов.
   Таблица лежит на стороне клиента не случайно: контекст сборки клиентского образа — `./client`,
   а его `npm run build` (`tsc --noEmit && vite build`) типизирует spec-файлы, поэтому файл из корня
   репозитория сломал бы `docker build ./client`. Бэкенд читает её через `fs` (в API-образ спеки не
   попадают — `tsconfig.build.json` исключает `**/*spec.ts`). `lib/schedule.spec.ts`.
-- Playwright (`client/e2e/`, все `/api/**` застабены): mobile-вёрстка + календарь
-  (клик по пустому месту, протяжка панорамирует, вид резерва); `mobile-screens.spec.ts` — смета
-  карточками на телефоне, строка архива, тач-прокрутка доски, аналитика;
-  в `price-list-works.spec.ts` — блок «on a phone» (работы прайса карточками).
+- Client (vitest) — 115 в 10 наборах: `lib/format` (20), `lib/parts` (18), `lib/schedule` (12),
+  `lib/generations` (8), `lib/roles` (2), `lib/price` (15), `analytics/query` (10), `analytics/view` (11), `analytics/analytics` (7),
+  `work-orders/part-costs` (12).
+- Playwright (`client/e2e/`, все `/api/**` застабены, 57 тестов): mobile-вёрстка + календарь
+  (клик по пустому месту, протяжка панорамирует, вид резерва), экран аналитики (контракт запроса, пустой период,
+  ошибка/повтор и несовпадение корзин, дозаполнение закупки, редирект не-владельца), колонка «Закупка» каталога
+  запчастей и панель «Закупка» в наряде (PATCH-контракт, у не-владельца панели и запросов нет).
+  `mobile-screens.spec.ts` — смета карточками на телефоне, строка архива, тач-прокрутка доски,
+  аналитика; в `price-list-works.spec.ts` — блок «on a phone» (работы прайса карточками).
   Нестабилен `choosing «Базовые цены» sends generation_id=base / null`: под параллельной
   нагрузкой Enter иногда уходит раньше, чем отфильтруется список (отдельно — 5/5).
-- Acceptance AC-1..10 — в `checks.md`.
+- Acceptance AC-1..11 — в `checks.md`.
 - Backend tsconfig исключает `client/`.
 
 ## Конвенции
@@ -283,6 +314,12 @@ guard'а (любой мастер мог снести каталог).
 - **Ловушка CSS:** `.unit-select` получает стрелку в `wo.css`, а не в слое `index.css` —
   unlayered-шортхенд `background` в правилах ячеек стирает `background-image` из слоя.
 - **E2E:** проект Playwright — телефон; десктопные спеки ставят `test.use({ viewport, isMobile: false })`.
+
+**Аналитика и закупочная цена (владелец):** `purchase_price` на строке запчасти (снимок из каталога при
+добавлении) и в каталоге; `GET /analytics/summary` (корзины по `edges`, период сравнения), `missing-costs`,
+`part-costs`. Период — только полный ISO-инстант с зоной (`parseIso` отвергает date-only), закупка ≤ 9 999 999 999.99,
+разрез запчастей ключуется парой «позиция + единица» (штуки и литры не склеиваются). Проверка — AC-11. Экран «Аналитика» подключён к API (демо-данные удалены), закупку можно
+дозаполнить из модалки экрана и из панели «Закупка» в наряде.
 
 **Dev-база сейчас почти пуста:** 1 клиент, 0 нарядов, 3 засеянных шаблона работ, каталог запчастей
 пуст. Прежнего импорта ~339 клиентов больше нет — если нужны реальные данные, импортировать заново.

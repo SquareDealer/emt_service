@@ -44,6 +44,8 @@ export class WorkOrdersService {
     private readonly core: WorkOrdersCoreService,
     @InjectRepository(Vehicle)
     private readonly vehicleRepo: Repository<Vehicle>,
+    @InjectRepository(PartLine)
+    private readonly partRepo: Repository<PartLine>,
     private readonly settings: SettingsService,
     private readonly pdf: WorkOrderPdfService,
     private readonly users: UsersService,
@@ -150,6 +152,18 @@ export class WorkOrdersService {
       viewer.role === 'master' ? viewer.id : source.assigned_master_id ?? null;
     await this.assertAssignable(assignedId);
 
+    // loadFull leaves purchase_price out (select: false), so read it separately.
+    const sourcePurchase = new Map(
+      (
+        await this.partRepo
+          .createQueryBuilder('p')
+          .select(['p.id'])
+          .addSelect('p.purchase_price')
+          .where('p.work_order_id = :id', { id })
+          .getMany()
+      ).map((p) => [p.id, p.purchase_price ?? null]),
+    );
+
     let newId = '';
     // 1 + N + M inserts without a transaction leave a half-copied estimate.
     await this.repo.manager.transaction(async (m: EntityManager) => {
@@ -203,6 +217,7 @@ export class WorkOrdersService {
             qty: part.qty,
             unit: part.unit,
             unit_price: part.unit_price,
+            purchase_price: sourcePurchase.get(part.id) ?? null,
             discount_type: part.discount_type,
             discount_value: part.discount_value,
             group_key: part.group_key,

@@ -16,8 +16,6 @@
   --an-hatch: oklch(0.58 0.012 240);
 }
 
-.an-demo { margin-left: var(--sp-2); }
-
 /* ---- период ---- */
 .an-period { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
 .an-stepper { display: flex; align-items: center; gap: var(--sp-1); }
@@ -248,7 +246,7 @@ line.an-base { stroke: var(--border-strong); stroke-width: 1; shape-rendering: c
 .an-fill { border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
 .an-fill-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 96px 120px 52px;
+  grid-template-columns: minmax(0, 1fr) 96px 120px 76px 32px;
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-3);
@@ -258,7 +256,7 @@ line.an-base { stroke: var(--border-strong); stroke-width: 1; shape-rendering: c
 .an-fill-row:focus-within { background: var(--surface-2); }
 .an-fill-sale { text-align: right; }
 .an-fill-input { text-align: right; }
-.an-fill-m { color: var(--muted); }
+.an-fill-m { color: var(--muted); text-align: right; }
 .an-fill-m[data-neg] { color: var(--danger); }
 
 /* ---- узкие экраны ---- */
@@ -288,8 +286,8 @@ line.an-base { stroke: var(--border-strong); stroke-width: 1; shape-rendering: c
   /* Filling a cost on a phone: the part's full name and what it sold for stay
      in view — the sale is the yardstick for the number being typed. */
   .an-fill-row {
-    grid-template-columns: minmax(0, 1fr) 104px;
-    grid-template-areas: 'name input' 'sale input';
+    grid-template-columns: minmax(0, 1fr) 104px 32px;
+    grid-template-areas: 'name input open' 'sale input open';
     row-gap: 2px;
   }
   .an-fill-row > .col:first-child { grid-area: name; }
@@ -300,6 +298,7 @@ line.an-base { stroke: var(--border-strong); stroke-width: 1; shape-rendering: c
     text-align: left; font-size: var(--text-xs);
   }
   .an-fill-input { grid-area: input; }
+  .an-fill-row > button { grid-area: open; }
   .an-fill-m { display: none; }
 }
 /* Small phones: two 92px figure columns left the name ~70px («Заме… сцеп…»).
@@ -315,3 +314,10 @@ line.an-base { stroke: var(--border-strong); stroke-width: 1; shape-rendering: c
 @media (max-width: 360px) {
   .an-bd .panel-head > .seg { display: grid; grid-template-columns: 1fr 1fr; }
 }
+
+/* ---- обновление и ошибка ---- */
+.an-live[data-stale] { opacity: 0.55; }
+.an-live { transition: opacity var(--dur) var(--ease); }
+.an-error { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-2); padding: var(--sp-4); font-size: var(--text-sm); }
+.an-row[role='link'] { cursor: pointer; }
+.an-row[role='link']:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }

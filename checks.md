@@ -94,6 +94,17 @@ BEFORE=$(curl -sf $H "localhost:3000/search?q=79991234567" | jq length)
 curl -sf $H -F file=@/tmp/clients.csv localhost:3000/clients/import >/dev/null   # повторный импорт
 test "$(curl -sf $H "localhost:3000/search?q=79991234567" | jq length)" = "$BEFORE"  # без дублей
 
+# AC-11: закупочная цена и аналитика (живая БД: select:false не течёт, save() не затирает колонку)
+# 13 шагов: каталог/наряд без purchase_price для не-владельцев, закупка в строке жива после PATCH qty,
+# summary за месяц (относительно baseline: orders +1, parts_cost +1040, unknown_count +0), duplicate копирует
+# закупку, PATCH part-costs не двигает total_frozen, 403 не-владельцу, 400 на убывающие edges,
+# возврат closed→done возвращает период к baseline.
+# ТОЛЬКО dev-база: без ALLOW_DESTRUCTIVE_CHECK=1 скрипт отказывается работать (exit 2).
+# Создаёт: двух пользователей (приёмщик, мастер), клиента, ТС, наряд (+ копию), запчасть каталога и шаблон работ.
+# Убирает в finally (и при успехе, и при падении): деактивирует обоих пользователей, отвязывает запчасть
+# от шаблона, деактивирует запчасть и шаблон. Клиент, ТС и наряды остаются (удаления в API нет).
+ALLOW_DESTRUCTIVE_CHECK=1 API_URL=http://localhost:3000/api DATABASE_URL=$DATABASE_URL node scripts/verify-analytics.mjs   # нужен psql в PATH
+
 kill %1
 ```
 
@@ -115,7 +126,7 @@ set -euo pipefail
 echo "=== env ==="        && node --version && psql "$DATABASE_URL" -c "SELECT 1;" >/dev/null
 echo "=== static ==="     && npx tsc --noEmit && npm test -- --passWithNoTests
 echo "=== integration ===" # см. Phase 2
-echo "=== acceptance ==="  # см. Phase 3 (AC-1..10)
+echo "=== acceptance ==="  # см. Phase 3 (AC-1..11)
 echo "=== build ==="       && npm run lint -- --max-warnings=0 && npm run build
 echo "✅ All checks passed"
 ```

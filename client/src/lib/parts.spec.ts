@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterParts, manufacturersOf } from './parts';
+import { filterParts, manufacturersOf, partTemplateBody } from './parts';
 import type { PartTemplate } from './types';
 
 const part = (id: string, name: string, manufacturer: string | null, catalog_number: string | null): PartTemplate => ({
@@ -65,5 +65,48 @@ describe('manufacturersOf', () => {
         part('e', 'x', '  ', null),
       ]),
     ).toEqual(['Castrol', 'MANN']);
+  });
+});
+
+describe('partTemplateBody', () => {
+  const tpl = part('p9', 'Фильтр', 'Mann', 'W712');
+  const f = { name: 'Фильтр', manufacturer: 'Mann', catalog_number: 'W712', unit: 'pcs' as const, price: '950', purchase: '520' };
+
+  it('приёмщик: ключа purchase_price нет, даже если поле заполнено', () => {
+    expect(partTemplateBody(f, { owner: false })).not.toHaveProperty('purchase_price');
+  });
+  it('приёмщик правит запись с закупкой: ключа нет', () => {
+    expect(partTemplateBody({ ...f, purchase: '' }, { owner: false, initial: { ...tpl, purchase_price: 520 } }))
+      .not.toHaveProperty('purchase_price');
+  });
+  it('владелец создаёт: закупка числом', () => {
+    expect(partTemplateBody(f, { owner: true }).purchase_price).toBe(520);
+  });
+  it('владелец создаёт с пустой закупкой: ключа нет', () => {
+    expect(partTemplateBody({ ...f, purchase: '' }, { owner: true })).not.toHaveProperty('purchase_price');
+  });
+  it('владелец не менял закупку при правке: ключа нет', () => {
+    expect(partTemplateBody(f, { owner: true, initial: { ...tpl, purchase_price: 520 } })).not.toHaveProperty('purchase_price');
+  });
+  it('владелец очистил закупку при правке: null', () => {
+    expect(partTemplateBody({ ...f, purchase: '' }, { owner: true, initial: { ...tpl, purchase_price: 520 } }).purchase_price).toBeNull();
+  });
+  it('закупка 0 — валидное значение, не «пусто»', () => {
+    expect(partTemplateBody({ ...f, purchase: '0' }, { owner: true }).purchase_price).toBe(0);
+  });
+  it('невалидная закупка у владельца: ключа нет', () => {
+    expect(partTemplateBody({ ...f, purchase: 'abc' }, { owner: true })).not.toHaveProperty('purchase_price');
+    expect(partTemplateBody({ ...f, purchase: '1e5' }, { owner: true, initial: { ...tpl, purchase_price: 520 } }))
+      .not.toHaveProperty('purchase_price');
+  });
+  it('запятая как десятичный разделитель', () => {
+    expect(partTemplateBody({ ...f, purchase: '520,5' }, { owner: true }).purchase_price).toBe(520.5);
+  });
+  it('остальные поля собираются как раньше', () => {
+    expect(partTemplateBody(f, { owner: false })).toEqual({ name: 'Фильтр', manufacturer: 'Mann', catalog_number: 'W712', unit: 'pcs', default_price: 950 });
+  });
+  it('пустые поля: null, цена не 0', () => {
+    expect(partTemplateBody({ name: ' Х ', manufacturer: ' ', catalog_number: '', unit: 'l', price: '', purchase: '' }, { owner: false }))
+      .toEqual({ name: 'Х', manufacturer: null, catalog_number: null, unit: 'l', default_price: null });
   });
 });

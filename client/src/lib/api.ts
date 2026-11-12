@@ -1,11 +1,15 @@
 import type {
+  AnalyticsSummary,
   AppSettings,
   ArchiveSort,
   AuthUser,
   CalendarBlock,
   Client,
   ImportReport,
+  MissingCostRow,
   Paginated,
+  PartCostItem,
+  PartCostRow,
   PartTemplate,
   PriceListRow,
   TaskTemplatePart,
@@ -299,6 +303,25 @@ export const api = {
   settings: () => request<AppSettings>('/settings'),
   updateSettings: (body: Partial<AppSettings>) =>
     request<AppSettings>('/settings', { method: 'PATCH', body }),
+
+  // analytics (только владелец)
+  analyticsSummary: (p: { edges: string[]; prev?: { from: string; to: string } }) => {
+    const qs = new URLSearchParams();
+    qs.set('edges', p.edges.join(','));
+    if (p.prev) {
+      qs.set('prev_from', p.prev.from);
+      qs.set('prev_to', p.prev.to);
+    }
+    return request<AnalyticsSummary>(`/analytics/summary?${qs}`);
+  },
+  analyticsMissingCosts: (from: string, to: string) => {
+    const qs = new URLSearchParams({ from, to });
+    return request<MissingCostRow[]>(`/analytics/missing-costs?${qs}`);
+  },
+  partCosts: (workOrderId: string) =>
+    request<PartCostRow[]>(`/analytics/part-costs/${workOrderId}`),
+  setPartCosts: (items: PartCostItem[]) =>
+    request<{ updated: number }>('/analytics/part-costs', { method: 'PATCH', body: { items } }),
 
   // search
   search: (q: string) => request<SearchHit[]>(`/search?q=${encodeURIComponent(q)}`),

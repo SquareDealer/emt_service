@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import type { Bucket } from './analytics';
 import { niceScale } from './analytics';
+import type { ChartBucket } from './view';
 import { rub, rubAxis } from './fmt';
 
 /**
@@ -40,7 +40,7 @@ function topRounded(x: number, y: number, w: number, h: number, r: number): stri
   return `M${x},${y + h}V${y + rr}a${rr},${rr} 0 0 1 ${rr},${-rr}H${x + w - rr}a${rr},${rr} 0 0 1 ${rr},${rr}V${y + h}Z`;
 }
 
-export function TrendChart({ buckets, now }: { buckets: Bucket[]; now: Date }) {
+export function TrendChart({ buckets, now }: { buckets: ChartBucket[]; now: Date }) {
   const [ref, width] = useWidth();
   const [active, setActive] = useState<number | null>(null);
   const hatch = useId();
@@ -187,7 +187,7 @@ export function TrendChart({ buckets, now }: { buckets: Bucket[]; now: Date }) {
 }
 
 /** Табличный двойник графика — те же цифры без наведения. */
-export function TrendTable({ buckets, now }: { buckets: Bucket[]; now: Date }) {
+export function TrendTable({ buckets, now }: { buckets: ChartBucket[]; now: Date }) {
   const rows = buckets.filter((b) => b.from <= now);
   return (
     <div className="an-ttable">

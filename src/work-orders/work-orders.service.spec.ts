@@ -108,7 +108,10 @@ function harness(seed: WorkOrder[] = [wo()]): Harness {
         return {
           ...found,
           labor_lines: labor.filter((l) => l.work_order_id === found.id),
-          part_lines: parts.filter((p) => p.work_order_id === found.id),
+          // purchase_price is select:false — loadFull never returns it.
+          part_lines: parts
+            .filter((p) => p.work_order_id === found.id)
+            .map(({ purchase_price: _omit, ...rest }) => rest as PartLine),
         } as WorkOrder;
       },
       getMany: async () => {
@@ -205,6 +208,21 @@ function harness(seed: WorkOrder[] = [wo()]): Harness {
   const service = new WorkOrdersService(
     core,
     { findOne: async () => ({ id: 'v1' }) } as never, // vehicleRepo
+    {
+      // Only the explicit purchase_price select returns the hidden column.
+      createQueryBuilder: () => ({
+        select: () => ({
+          addSelect: () => ({
+            where: (_c: string, { id }: { id: string }) => ({
+              getMany: async () =>
+                parts
+                  .filter((p) => p.work_order_id === id)
+                  .map((p) => ({ id: p.id, purchase_price: p.purchase_price })),
+            }),
+          }),
+        }),
+      }),
+    } as never, // partRepo
     settings,
     { build: h.pdfBuild } as never, // pdf
     { isAssignable: async () => true } as never, // users
@@ -226,6 +244,7 @@ function harness(seed: WorkOrder[] = [wo()]): Harness {
         source: 'template' as const,
       }),
     } as never,
+    { purchasePrices: async () => new Map() } as never, // partTemplates
   );
 
   h.service = service;
@@ -521,6 +540,18 @@ describe('WorkOrdersService.duplicate', () => {
     await h.service.duplicate('wo1', undefined, owner);
     expect(copyOf(h).total_cached).toBe(6480);
     expect(copyOf(h).paid_amount).toBe(0);
+  });
+
+  it('carries purchase price over even though loadFull does not return it', async () => {
+    const h = closedOrder();
+    h.parts[0].purchase_price = 5200;
+    // The source order as the service sees it has no purchase_price at all.
+    const loaded = await h.service.findOne('wo1', owner);
+    expect(loaded.part_lines![0]).not.toHaveProperty('purchase_price');
+
+    await h.service.duplicate('wo1', undefined, owner);
+    const copied = h.parts.filter((p) => p.work_order_id === 'copy-wo');
+    expect(copied[0].purchase_price).toBe(5200);
   });
 
   it('runs as one transaction', async () => {
