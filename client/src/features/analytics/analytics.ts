@@ -244,6 +244,8 @@ export interface BreakdownRow {
   key: string;
   name: string;
   sub?: string;
+  /** Куда ведёт строка; у работ, запчастей и машин ссылки нет. */
+  href?: string;
   vals: (number | null)[];
   revenue: number;
   /** Сколько строк запчастей без закупки спрятано в этой строке. */
