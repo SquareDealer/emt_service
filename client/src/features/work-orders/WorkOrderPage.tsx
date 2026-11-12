@@ -34,7 +34,7 @@ import {
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import { useAuth } from '../../lib/auth';
-import { canAssignMaster } from '../../lib/roles';
+import { canAssignMaster, canSeeAnalytics } from '../../lib/roles';
 import {
   money,
   laborGross,
@@ -59,6 +59,7 @@ import { ScheduleTimeline, SELECTION_ID } from '../../components/ScheduleTimelin
 import { ApplyTemplateModal } from './ApplyTemplateModal';
 import { PriceListPickerModal } from './PriceListPickerModal';
 import { DuplicateModal } from './DuplicateModal';
+import { PartCostsPanel } from './PartCostsPanel';
 import { Spinner, StatusPill, EmptyState, Modal } from '../../components/ui';
 import './wo.css';
 
@@ -524,6 +525,11 @@ export function WorkOrderPage() {
               {!closed && <PartLineForm onSubmit={(b) => mAddPart.mutate(b)} busy={mAddPart.isPending} />}
             </div>
           </section>
+
+          {/* закупка — только владельцу; условие здесь, чтобы остальные не делали запрос */}
+          {canSeeAnalytics(user?.role) && (wo.part_lines ?? []).length > 0 && (
+            <PartCostsPanel workOrderId={wo.id} lines={wo.part_lines ?? []} />
+          )}
 
           {/* complaint — причина обращения (prints in order PDF) */}
           <section className="panel">

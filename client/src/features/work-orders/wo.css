@@ -139,3 +139,29 @@
   background-position: right 4px center;
   background-size: 12px;
 }
+
+/* ---- панель «Закупка» (только владелец) ---- */
+.pc-note { padding: var(--sp-3) var(--sp-4); }
+.pc-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px 110px 90px 64px;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--border);
+}
+.pc-row:focus-within { background: var(--surface-2); }
+.pc-input { text-align: right; }
+.pc-markup { color: var(--muted); }
+.pc-markup[data-neg] { color: var(--danger); }
+.pc-total {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+}
+@media (max-width: 640px) {
+  .pc-row { grid-template-columns: minmax(0, 1fr) 104px; }
+  .pc-row > :nth-child(2), .pc-row > :nth-child(4), .pc-row > :nth-child(5) { display: none; }
+}

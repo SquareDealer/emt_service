@@ -69,7 +69,7 @@ type Discountable = Pick<LaborLine, 'discount_type' | 'discount_value'>;
 type LaborLineLike = Pick<LaborLine, 'hours' | 'rate_snapshot' | 'price_override'> & Discountable;
 type PartLineLike = Pick<PartLine, 'qty' | 'unit_price'> & Discountable;
 
-function round2(n: number): number {
+export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
