@@ -158,25 +158,32 @@ function WorksTab() {
             </button>
           )}
         </label>
+        {manage && (
+          <div className="pw-actions">
+            {generationId && (
+              <button
+                type="button"
+                className="btn btn-default btn-icon"
+                onClick={() => setCopyOpen(true)}
+                aria-label="Скопировать из другого поколения"
+                title="Скопировать цены из другого поколения"
+              >
+                <Copy size={16} />
+              </button>
+            )}
+            <button type="button" className="btn btn-primary" onClick={() => setForm('new')}>
+              <Plus size={16} /> Добавить работу
+            </button>
+          </div>
+        )}
+        {/* Second row: the filter only exists for a generation, so it sits under the picker. */}
         {generationId && (
-          <div className="seg" role="group" aria-label="Какие работы показывать">
+          <div className="seg pw-filter" role="group" aria-label="Какие работы показывать">
             <button type="button" className="seg-btn" data-on={!onlyOwn} onClick={() => setOnlyOwn(false)}>
               Все работы
             </button>
             <button type="button" className="seg-btn" data-on={onlyOwn} onClick={() => setOnlyOwn(true)}>
               Со своей ценой <span className="pw-count tnum">{withOverride}</span>
-            </button>
-          </div>
-        )}
-        {manage && (
-          <div className="pw-actions">
-            {generationId && (
-              <button type="button" className="btn btn-default" onClick={() => setCopyOpen(true)}>
-                <Copy size={15} /> Скопировать из…
-              </button>
-            )}
-            <button type="button" className="btn btn-primary" onClick={() => setForm('new')}>
-              <Plus size={16} /> Добавить работу
             </button>
           </div>
         )}

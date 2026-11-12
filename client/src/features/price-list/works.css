@@ -4,21 +4,27 @@
    be quieter sets its colour on the element itself, not on a parent. */
 
 /* ---------- toolbar ---------- */
+/* Row 1: generation · search · actions. Row 2: the price filter, under the picker. */
 .pw-bar {
-  display: flex;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) auto;
+  align-items: end;
   gap: var(--sp-3);
-  flex-wrap: wrap;
   margin-bottom: var(--sp-4);
 }
-.pw-gen { flex: 0 1 300px; min-width: 240px; }
-.pw-bar > .pw-search { flex: 1 1 200px; max-width: 360px; }
+.pw-gen { min-width: 0; }
 .pw-actions {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  margin-left: auto;
 }
+/* As tall as the inputs it sits under; the buttons fill it. */
+.pw-filter {
+  grid-column: 1 / -1;
+  justify-self: start;
+  height: var(--control-h);
+}
+.pw-filter .seg-btn { height: 100%; min-height: 0; }
 
 /* Search field with a leading icon; the border lives on the wrapper. */
 .pw-search {
@@ -327,12 +333,12 @@
 }
 
 @media (max-width: 640px) {
-  .pw-gen,
-  .pw-bar > .pw-search { flex: 1 1 100%; max-width: none; }
-  .pw-bar > .seg { flex: 1 1 100%; }
-  .pw-bar > .seg .seg-btn { flex: 1 1 0; }
-  .pw-actions { flex: 1 1 100%; margin-left: 0; }
+  /* One column: picker, search, actions, filter — each the full width. */
+  .pw-bar { grid-template-columns: minmax(0, 1fr); }
   .pw-actions .btn { flex: 1 1 0; }
+  .pw-actions .btn-icon { flex: 0 0 auto; }
+  .pw-filter { justify-self: stretch; }
+  .pw-filter .seg-btn { flex: 1 1 0; }
 
   .pp-top { flex-direction: column; align-items: stretch; }
   .pp-gen { flex: 0 0 auto; }
