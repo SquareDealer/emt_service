@@ -148,7 +148,7 @@ test('numbers come from the server; no demo-data badge', async ({ page }) => {
   await page.goto('/analytics');
   await expect(page.getByText('382 250 ₽').first()).toBeVisible();
   await expect(page.getByText('166 779 ₽').first()).toBeVisible();
-  await expect(page.getByText('17', { exact: true }).first()).toBeVisible();
+  await expect(page.locator('.an-kpi', { hasText: 'Закрыто нарядов' }).getByText('17', { exact: true })).toBeVisible();
   await expect(page.getByText(/демо-данные/i)).toHaveCount(0);
 });
 
@@ -192,6 +192,20 @@ test('a server error shows a retry button; retry brings the numbers', async ({ p
   await page.getByRole('button', { name: 'Повторить' }).click();
   await expect(page.getByText('382 250 ₽').first()).toBeVisible();
   await expect(page.getByText('Не удалось загрузить аналитику')).toHaveCount(0);
+});
+
+test('a bucket count mismatch shows the error panel with retry, the page survives', async ({ page }) => {
+  await setup(page, {
+    summary: (url) => {
+      const body = summaryBody(url);
+      body.buckets = body.buckets.slice(0, body.buckets.length - 2);
+      return json(body);
+    },
+  });
+  await page.goto('/analytics');
+  await expect(page.getByRole('alert').getByText('Не удалось загрузить аналитику')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Повторить' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Аналитика' }).first()).toBeVisible();
 });
 
 test('missing costs can be filled in from the modal and the summary refetches', async ({ page }) => {
