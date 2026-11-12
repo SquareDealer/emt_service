@@ -5,6 +5,7 @@ import {
   LayoutGrid,
   CalendarDays,
   Archive,
+  BarChart3,
   Upload,
   Settings,
   Search,
@@ -17,7 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
-import { isPlainMaster, canManageUsers } from '../lib/roles';
+import { isPlainMaster, canManageUsers, canSeeAnalytics } from '../lib/roles';
 import { useTheme } from '../lib/theme';
 import { Avatar } from './ui';
 import { GlobalSearch } from './GlobalSearch';
@@ -32,6 +33,7 @@ const NAV = [
   { to: '/calendar', label: 'Календарь', icon: CalendarDays },
   { to: '/price-list', label: 'Прайс-лист', icon: Tag },
   { to: '/archive', label: 'Архив', icon: Archive },
+  { to: '/analytics', label: 'Аналитика', icon: BarChart3 },
   { to: '/import', label: 'Импорт базы', icon: Upload },
   { to: '/settings', label: 'Настройки', icon: Settings },
 ];
@@ -64,6 +66,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const nav = NAV.filter((n) => {
     if (n.to === '/settings' && isPlainMaster(user?.role)) return false;
     if (n.to === '/price-list' && isPlainMaster(user?.role)) return false;
+    if (n.to === '/analytics' && !canSeeAnalytics(user?.role)) return false;
     if (n.to === '/import' && !canManageUsers(user?.role)) return false;
     return true;
   });
