@@ -1,9 +1,10 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
-import { parseEdges, parsePrev } from './analytics.controller';
+import { parseEdges, parsePrev, parseRange } from './analytics.controller';
 import { PricingService } from '../work-orders/pricing.service';
 import { WorkOrder } from '../entities/work-order.entity';
 import { LaborLine } from '../entities/labor-line.entity';
+import { PartLine } from '../entities/part-line.entity';
 
 const D = (s: string) => new Date(s);
 
@@ -36,7 +37,7 @@ function setup(rows: WorkOrder[]) {
   qb.andWhere = (s: string, params?: object) => { calls.andWhere.push(s); Object.assign(calls.params, params); return qb; };
   qb.getMany = async () => rows;
   const repo = { createQueryBuilder: () => { calls.created += 1; return qb; } };
-  const service = new AnalyticsService(repo as never, new PricingService());
+  const service = new AnalyticsService(repo as never, {} as never, new PricingService());
   return { service, calls };
 }
 
@@ -86,6 +87,182 @@ describe('AnalyticsService', () => {
     expect(s.breakdown.labor).toHaveLength(1);
     expect(s.breakdown.labor[0]).toMatchObject({ count: 2, hours: 4, revenue: 10000 });
     expect(s.breakdown.vehicles[0].orders).toBe(2);
+  });
+});
+
+function part(id: string, p: Partial<PartLine> = {}): PartLine {
+  return {
+    id, name: 'Фильтр', manufacturer: 'Mann', qty: 1, unit: 'pcs', unit_price: 1000,
+    discount_type: null, discount_value: null, part_template_id: null, purchase_price: null,
+    ...p,
+  } as PartLine;
+}
+
+function costSetup(opts: { woExists?: boolean; known?: string[]; lines?: PartLine[]; orders?: WorkOrder[] } = {}) {
+  const log = {
+    transactions: 0,
+    updates: [] as [string, unknown][],
+    updateEntities: [] as unknown[],
+    addSelect: [] as string[],
+    orderBy: [] as string[],
+  };
+  const known = new Set(opts.known ?? []);
+  const qb: Record<string, unknown> = {};
+  qb.leftJoinAndSelect = () => qb;
+  qb.where = () => qb;
+  qb.andWhere = () => qb;
+  qb.addSelect = (s: string) => { log.addSelect.push(s); return qb; };
+  qb.orderBy = (s: string) => { log.orderBy.push(s); return qb; };
+  qb.addOrderBy = (s: string) => { log.orderBy.push(s); return qb; };
+  qb.getMany = async () => opts.lines ?? opts.orders ?? [];
+  const repo = {
+    createQueryBuilder: () => qb,
+    findOne: async () => (opts.woExists === false ? null : { id: 'w1' }),
+  };
+  const partRepo = {
+    createQueryBuilder: () => qb,
+    find: async (o: { where: { id: { value: string[] } } }) =>
+      o.where.id.value.filter((id) => known.has(id)).map((id) => ({ id })),
+    manager: {
+      transaction: async (fn: (m: unknown) => Promise<void>) => {
+        log.transactions += 1;
+        await fn({
+          update: async (entity: unknown, id: string, patch: unknown) => {
+            log.updateEntities.push(entity);
+            log.updates.push([id, patch]);
+          },
+        });
+      },
+    },
+  };
+  const service = new AnalyticsService(repo as never, partRepo as never, new PricingService());
+  return { service, log };
+}
+
+describe('AnalyticsService: закупки', () => {
+  const orders = () => [
+    wo('o5', '2026-11-05T10:00:00Z', {
+      doc_number: 1539,
+      total_frozen: 3000,
+      labor_lines: [],
+      part_lines: [part('p1', { purchase_price: 500 }), part('p2', { name: 'Масло', unit_price: 3000 })],
+    }),
+    wo('o10', '2026-11-10T10:00:00Z', {
+      doc_number: 1541,
+      total_frozen: 1000,
+      labor_lines: [],
+      part_lines: [part('p3')],
+    }),
+  ];
+
+  it('missingCosts отдаёт только строки с cost null, новые сверху', async () => {
+    const { service } = costSetup({ orders: orders() });
+    const rows = await service.missingCosts(NOV[0], NOV[1]);
+    expect(rows.map((r) => r.doc_number)).toEqual([1541, 1539]);
+    expect(rows.map((r) => r.part_line_id)).toEqual(['p3', 'p2']);
+    expect(rows[0]).toMatchObject({
+      work_order_id: 'o10', client: 'Иванов', vehicle: 'MINI Hatch R56',
+      name: 'Фильтр', manufacturer: 'Mann', qty: 1, unit: 'pcs',
+      closed_at: '2026-11-10T10:00:00.000Z',
+    });
+  });
+
+  it('missingCosts отдаёт net после скидок, а не qty × unit_price', async () => {
+    const { service } = costSetup({
+      orders: [
+        wo('o1', '2026-11-05T10:00:00Z', {
+          total_frozen: 800,
+          labor_lines: [],
+          part_lines: [part('p1', { qty: 2, unit_price: 500, discount_type: 'percent', discount_value: 20 })],
+        }),
+      ],
+    });
+    const rows = await service.missingCosts(NOV[0], NOV[1]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].net).toBe(800);
+    expect(rows[0].net).not.toBe(1000);
+  });
+
+  it('setPartCosts пишет все строки в одной транзакции', async () => {
+    const { service, log } = costSetup({ known: ['a', 'b'] });
+    const res = await service.setPartCosts([
+      { part_line_id: 'a', purchase_price: 5200 },
+      { part_line_id: 'b', purchase_price: 0 },
+    ]);
+    expect(res).toEqual({ updated: 2 });
+    expect(log.transactions).toBe(1);
+    expect(log.updates).toEqual([['a', { purchase_price: 5200 }], ['b', { purchase_price: 0 }]]);
+  });
+
+  it('setPartCosts: неизвестный part_line_id → 404, ни одна строка не записана', async () => {
+    const { service, log } = costSetup({ known: ['a'] });
+    await expect(
+      service.setPartCosts([
+        { part_line_id: 'a', purchase_price: 1 },
+        { part_line_id: 'нет', purchase_price: 1 },
+      ]),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(log.updates).toEqual([]);
+    expect(log.transactions).toBe(0);
+  });
+
+  it('setPartCosts работает для строки закрытого наряда и не меняет total_frozen', async () => {
+    const { service, log } = costSetup({ known: ['a'] });
+    await service.setPartCosts([{ part_line_id: 'a', purchase_price: 700 }]);
+    // пишем только в part_lines и только purchase_price: наряд и его заморозка не затронуты
+    expect(log.updateEntities).toEqual([PartLine]);
+    expect(log.updates).toEqual([['a', { purchase_price: 700 }]]);
+  });
+
+  it('setPartCosts(null) очищает закупку', async () => {
+    const { service, log } = costSetup({ known: ['a'] });
+    await service.setPartCosts([{ part_line_id: 'a', purchase_price: null }]);
+    expect(log.updates).toEqual([['a', { purchase_price: null }]]);
+  });
+
+  it('partCosts читает закупку явно и в порядке сметы', async () => {
+    const { service, log } = costSetup({
+      lines: [part('p1', { purchase_price: 500 }), part('p2')],
+    });
+    const rows = await service.partCosts('w1');
+    expect(log.addSelect).toContain('p.purchase_price');
+    expect(log.orderBy).toEqual(['p.group_sort', 'p.sort', 'p.created_at']);
+    expect(rows.map((r) => [r.part_line_id, r.purchase_price])).toEqual([['p1', 500], ['p2', null]]);
+  });
+
+  it('partCosts для несуществующего наряда → 404', async () => {
+    const { service } = costSetup({ woExists: false });
+    await expect(service.partCosts('нет')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('parseRange', () => {
+  it('корректный период разбирается', () => {
+    expect(parseRange('2026-11-01T00:00:00Z', '2026-12-01T00:00:00Z')).toEqual({ from: NOV[0], to: NOV[1] });
+  });
+  it('нет параметра или не ISO → 400 с именем параметра', () => {
+    expect(() => parseRange(undefined, '2026-12-01T00:00:00Z')).toThrow(/from/);
+    expect(() => parseRange('2026-11-01T00:00:00Z', 'завтра')).toThrow(/to/);
+  });
+  it('from >= to → 400', () => {
+    expect(() => parseRange('2026-12-01T00:00:00Z', '2026-11-01T00:00:00Z')).toThrow(BadRequestException);
+    expect(() => parseRange('2026-11-01T00:00:00Z', '2026-11-01T00:00:00Z')).toThrow(BadRequestException);
+  });
+  it('повторный параметр (массив) → 400, а не TypeError', () => {
+    const arr = ['2026-11-01T00:00:00Z', '2026-11-02T00:00:00Z'];
+    expect(() => parseRange(arr, '2026-12-01T00:00:00Z')).toThrow(BadRequestException);
+    expect(() => parseRange('2026-11-01T00:00:00Z', arr)).toThrow(/to/);
+  });
+});
+
+describe('query-параметры массивом', () => {
+  const arr = ['2026-11-01T00:00:00Z', '2026-12-01T00:00:00Z'];
+  it('parseEdges(string[]) → 400', () => {
+    expect(() => parseEdges(arr)).toThrow(BadRequestException);
+  });
+  it('parsePrev(string[]) → 400', () => {
+    expect(() => parsePrev(arr, '2026-11-01T00:00:00Z')).toThrow(BadRequestException);
+    expect(() => parsePrev('2026-10-01T00:00:00Z', arr)).toThrow(/prev_to/);
   });
 });
 

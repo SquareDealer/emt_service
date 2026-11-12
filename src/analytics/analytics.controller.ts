@@ -1,11 +1,41 @@
-import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { Type } from 'class-transformer';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsNumber,
+  IsOptional,
+  IsUUID,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
-import { AnalyticsService, AnalyticsSummary } from './analytics.service';
+import {
+  AnalyticsService,
+  AnalyticsSummary,
+  MissingCostRow,
+  PartCostRow,
+} from './analytics.service';
 
 const MAX_EDGES = 63;
 
-function parseIso(raw: string, param: string): Date {
+/** Повтор параметра (`?from=a&from=b`) приходит массивом — это 400, а не TypeError. */
+function parseIso(raw: unknown, param: string): Date {
+  if (typeof raw !== 'string') {
+    throw new BadRequestException(`Параметр ${param}: ожидается одна ISO-дата`);
+  }
   const d = new Date(raw.trim());
   if (!raw.trim() || Number.isNaN(d.getTime()) || !/^\d{4}-\d{2}-\d{2}/.test(raw.trim())) {
     throw new BadRequestException(`Параметр ${param}: «${raw}» — не ISO-дата`);
@@ -14,7 +44,10 @@ function parseIso(raw: string, param: string): Date {
 }
 
 /** `edges` — от 2 до 63 ISO-инстантов через запятую, строго по возрастанию. */
-export function parseEdges(raw: string | undefined): Date[] {
+export function parseEdges(raw: unknown): Date[] {
+  if (raw !== undefined && typeof raw !== 'string') {
+    throw new BadRequestException('Параметр edges: ожидается одна строка через запятую');
+  }
   const parts = raw ? raw.split(',') : [];
   if (parts.length < 2) {
     throw new BadRequestException('Параметр edges: нужно минимум две границы периода');
@@ -33,8 +66,8 @@ export function parseEdges(raw: string | undefined): Date[] {
 
 /** `prev_from`/`prev_to` — только парой, prev_from < prev_to; без них — null. */
 export function parsePrev(
-  rawFrom: string | undefined,
-  rawTo: string | undefined,
+  rawFrom: unknown,
+  rawTo: unknown,
 ): { from: Date; to: Date } | null {
   if (rawFrom === undefined && rawTo === undefined) return null;
   if (rawFrom === undefined || rawTo === undefined) {
@@ -46,6 +79,35 @@ export function parsePrev(
     throw new BadRequestException('Параметр prev_from должен быть раньше prev_to');
   }
   return { from, to };
+}
+
+/** `from`/`to` отчёта о закупках: обязательны, from < to. */
+export function parseRange(rawFrom: unknown, rawTo: unknown): { from: Date; to: Date } {
+  const from = parseIso(rawFrom, 'from');
+  const to = parseIso(rawTo, 'to');
+  if (from.getTime() >= to.getTime()) {
+    throw new BadRequestException('Параметр from должен быть раньше to');
+  }
+  return { from, to };
+}
+
+export class PartCostItemDto {
+  @IsUUID()
+  part_line_id: string;
+
+  @IsOptional()
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @Min(0)
+  purchase_price: number | null;
+}
+
+export class SetPartCostsDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @ValidateNested({ each: true })
+  @Type(() => PartCostItemDto)
+  items: PartCostItemDto[];
 }
 
 @Controller('analytics')
@@ -61,5 +123,21 @@ export class AnalyticsController {
     @Query('prev_to') prevTo?: string,
   ): Promise<AnalyticsSummary> {
     return this.analytics.summary(parseEdges(edges), parsePrev(prevFrom, prevTo));
+  }
+
+  @Get('missing-costs')
+  missingCosts(@Query('from') from?: unknown, @Query('to') to?: unknown): Promise<MissingCostRow[]> {
+    const range = parseRange(from, to);
+    return this.analytics.missingCosts(range.from, range.to);
+  }
+
+  @Get('part-costs/:workOrderId')
+  partCosts(@Param('workOrderId', ParseUUIDPipe) id: string): Promise<PartCostRow[]> {
+    return this.analytics.partCosts(id);
+  }
+
+  @Patch('part-costs')
+  setPartCosts(@Body() dto: SetPartCostsDto): Promise<{ updated: number }> {
+    return this.analytics.setPartCosts(dto.items);
   }
 }
