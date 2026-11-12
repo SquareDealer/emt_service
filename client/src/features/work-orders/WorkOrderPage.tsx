@@ -29,6 +29,7 @@ import {
   Copy,
   FileDown,
   UserCog,
+  Tag,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
@@ -56,6 +57,7 @@ import { blockToEvent, dayRangeIso, hasConflict } from '../../lib/schedule';
 import type { TimelineCfg, TimelineEvent } from '../../lib/schedule';
 import { ScheduleTimeline, SELECTION_ID } from '../../components/ScheduleTimeline';
 import { ApplyTemplateModal } from './ApplyTemplateModal';
+import { PriceListPickerModal } from './PriceListPickerModal';
 import { DuplicateModal } from './DuplicateModal';
 import { Spinner, StatusPill, EmptyState, Modal } from '../../components/ui';
 import './wo.css';
@@ -98,7 +100,6 @@ export function WorkOrderPage() {
     refetchOnMount: 'always',
   });
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.settings });
-  const { data: templates } = useQuery({ queryKey: ['templates'], queryFn: api.templates });
   const { user } = useAuth();
   const canAssign = canAssignMaster(user?.role);
   const { data: staff } = useQuery({ queryKey: ['users'], queryFn: api.users, enabled: canAssign });
@@ -236,7 +237,10 @@ export function WorkOrderPage() {
   });
 
   // Price-list entry awaiting confirmation before it is added to the estimate.
-  const [applyTemplateId, setApplyTemplateId] = useState<string | null>(null);
+  const [pricePickerOpen, setPricePickerOpen] = useState(false);
+  // The work picked from the price list and the generation it is priced for
+  // (null = base prices) — what the confirmation sheet previews and applies.
+  const [applyTpl, setApplyTpl] = useState<{ templateId: string; generationId: string | null } | null>(null);
   const [dupOpen, setDupOpen] = useState(false);
 
   // Which labor/part line is being edited inline (pencil → row becomes a form).
@@ -391,17 +395,15 @@ export function WorkOrderPage() {
           <section className="panel">
             <div className="panel-head">
               <h2 className="panel-title"><Wrench size={16} className="muted" style={{ display: 'inline', verticalAlign: '-3px', marginRight: 6 }} />Работы</h2>
-              {!closed && templates && templates.length > 0 && (
-                <select
-                  className="select btn-sm"
-                  style={{ width: 'auto', height: '1.875rem' }}
-                  value=""
-                  onChange={(e) => { if (e.target.value) { keep(); setApplyTemplateId(e.target.value); } e.target.value = ''; }}
-                  aria-label="Добавить из шаблона"
+              {!closed && (
+                <button
+                  type="button"
+                  className="btn btn-default btn-sm"
+                  onClick={() => { keep(); setPricePickerOpen(true); }}
+                  title="Добавить работу из прайса вместе с её запчастями"
                 >
-                  <option value="">+ Из прайса…</option>
-                  {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
+                  <Tag size={14} /> Из прайса
+                </button>
               )}
             </div>
 
@@ -671,10 +673,21 @@ export function WorkOrderPage() {
 
       <DuplicateModal open={dupOpen} wo={wo} onClose={() => setDupOpen(false)} />
 
+      <PriceListPickerModal
+        open={pricePickerOpen}
+        workOrder={wo}
+        onClose={() => setPricePickerOpen(false)}
+        onPick={(templateId, generationId) => {
+          setPricePickerOpen(false);
+          setApplyTpl({ templateId, generationId });
+        }}
+      />
+
       <ApplyTemplateModal
         workOrderId={id}
-        templateId={applyTemplateId}
-        onClose={() => setApplyTemplateId(null)}
+        templateId={applyTpl?.templateId ?? null}
+        generationId={applyTpl?.generationId ?? null}
+        onClose={() => setApplyTpl(null)}
         onApplied={onSaved}
       />
     </div>

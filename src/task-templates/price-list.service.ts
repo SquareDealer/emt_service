@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { EntityManager, IsNull, Repository } from 'typeorm';
 import { TaskTemplate } from '../entities/task-template.entity';
 import { TemplateGenerationPrice } from '../entities/template-generation-price.entity';
 import { TaskTemplatePart } from '../entities/task-template-part.entity';
@@ -66,6 +66,53 @@ export class PriceListService {
         effective: this.resolution.effective(t, o, rate),
         parts_count: partCounts.get(t.id) ?? 0,
       };
+    });
+  }
+
+  /**
+   * «Добавить работу в поколение»: the catalog stays shared, so this creates
+   * the work and — when a generation and at least one figure are given — that
+   * generation's price for it. One transaction: a work saved without its price
+   * would quietly be charged at the base rate.
+   */
+  async createWork(input: {
+    name: string;
+    default_hours?: number | null;
+    default_price?: number | null;
+    generation_id?: string | null;
+    hours?: number | null;
+    price?: number | null;
+  }): Promise<TaskTemplate> {
+    const name = (input.name ?? '').trim();
+    if (!name) throw new BadRequestException('Укажите название работы');
+
+    const generationId = input.generation_id ?? null;
+    if (generationId) await this.assertGeneration(generationId);
+    const hours = input.hours ?? null;
+    const price = input.price ?? null;
+
+    return this.templates.manager.transaction(async (m: EntityManager) => {
+      const template = await m.save(
+        m.create(TaskTemplate, {
+          name,
+          // Explicit nulls: numericTransformer writes undefined as NULL anyway,
+          // and the caller gets back exactly what was stored.
+          default_hours: input.default_hours ?? null,
+          default_price: input.default_price ?? null,
+          active: true,
+        }),
+      );
+      if (generationId && (hours !== null || price !== null)) {
+        await m.save(
+          m.create(TemplateGenerationPrice, {
+            template_id: template.id,
+            generation_id: generationId,
+            hours,
+            price,
+          }),
+        );
+      }
+      return template;
     });
   }
 
