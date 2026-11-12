@@ -1,8 +1,4 @@
-/**
- * Чистые агрегаты экрана аналитики. В прототипе считаются на клиенте по демо-данным;
- * в боевой версии то же самое вернёт сервер — формы `Totals` / `Bucket` / `Breakdown`
- * задуманы как контракт ответа.
- */
+/** Периоды, сравнение и шкала экрана аналитики. Цифры считает сервер (`/analytics/summary`). */
 import {
   addDays,
   addMonths,
@@ -19,7 +15,6 @@ import {
   startOfYear,
 } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import type { MockOrder } from './mock';
 
 export type PeriodKind = 'week' | 'month' | 'quarter' | 'year';
 
@@ -150,87 +145,6 @@ export function comparisonFor(p: Period, now: Date): Comparison {
   };
 }
 
-export function inRange(orders: MockOrder[], r: Range): MockOrder[] {
-  return orders.filter((o) => o.closedAt >= r.from && o.closedAt < r.to);
-}
-
-export interface Totals {
-  orders: number;
-  hours: number;
-  /** Всё, что выставлено клиентам: работы + запчасти, после скидок. */
-  revenue: number;
-  labor: number;
-  /** Продажа запчастей, у которых закупка известна. */
-  partsSale: number;
-  partsCost: number;
-  /** partsSale − partsCost. */
-  markup: number;
-  /** Продажа запчастей без закупки — в прибыль НЕ входит. */
-  unknownSale: number;
-  unknownCount: number;
-  discounts: number;
-  /** labor + markup. Нижняя оценка, пока есть unknownSale. */
-  profit: number;
-  /** profit / revenue, доля 0..1. */
-  margin: number | null;
-  avgCheck: number | null;
-}
-
-export function totals(orders: MockOrder[]): Totals {
-  const t: Totals = {
-    orders: orders.length, hours: 0, revenue: 0, labor: 0, partsSale: 0, partsCost: 0,
-    markup: 0, unknownSale: 0, unknownCount: 0, discounts: 0, profit: 0, margin: null, avgCheck: null,
-  };
-  for (const o of orders) {
-    t.discounts += o.discount;
-    for (const l of o.labor) {
-      t.labor += l.net;
-      t.hours += l.hours;
-    }
-    for (const p of o.parts) {
-      if (p.cost === null) {
-        t.unknownSale += p.net;
-        t.unknownCount += 1;
-      } else {
-        t.partsSale += p.net;
-        t.partsCost += p.cost;
-      }
-    }
-  }
-  t.markup = t.partsSale - t.partsCost;
-  t.revenue = t.labor + t.partsSale + t.unknownSale;
-  t.profit = t.labor + t.markup;
-  t.margin = t.revenue > 0 ? t.profit / t.revenue : null;
-  t.avgCheck = t.orders > 0 ? t.revenue / t.orders : null;
-  return t;
-}
-
-export interface Bucket extends BucketRange {
-  labor: number;
-  markup: number;
-  cost: number;
-  unknown: number;
-  revenue: number;
-  profit: number;
-  orders: number;
-}
-
-export function series(orders: MockOrder[], p: Period): Bucket[] {
-  return p.buckets.map((b) => {
-    const t = totals(inRange(orders, b));
-    return {
-      ...b,
-      labor: t.labor,
-      markup: t.markup,
-      cost: t.partsCost,
-      unknown: t.unknownSale,
-      revenue: t.revenue,
-      profit: t.profit,
-      orders: t.orders,
-    };
-  });
-}
-
 export type BreakdownKind = 'labor' | 'parts' | 'vehicles' | 'clients';
 
 export interface BreakdownCol {
@@ -257,104 +171,6 @@ export interface Breakdown {
   rows: BreakdownRow[];
   /** Индекс колонки сортировки по умолчанию — «что выгодно» для этого разреза. */
   defaultSort: number;
-}
-
-function group<T>(map: Map<string, T>, key: string, init: () => T): T {
-  let v = map.get(key);
-  if (!v) {
-    v = init();
-    map.set(key, v);
-  }
-  return v;
-}
-
-export function breakdown(orders: MockOrder[], kind: BreakdownKind): Breakdown {
-  if (kind === 'labor') {
-    const m = new Map<string, { n: number; hours: number; rev: number }>();
-    for (const o of orders)
-      for (const l of o.labor) {
-        const g = group(m, l.name, () => ({ n: 0, hours: 0, rev: 0 }));
-        g.n += 1;
-        g.hours += l.hours;
-        g.rev += l.net;
-      }
-    return {
-      cols: [
-        { label: 'Раз', kind: 'num', minor: true },
-        { label: 'Часы', kind: 'num', minor: true },
-        { label: 'Выручка', kind: 'money' },
-        { label: '₽ за час', kind: 'money' },
-      ],
-      defaultSort: 2,
-      rows: [...m].map(([name, g]) => ({
-        key: name,
-        name,
-        vals: [g.n, g.hours, g.rev, g.hours > 0 ? g.rev / g.hours : null],
-        revenue: g.rev,
-      })),
-    };
-  }
-
-  if (kind === 'parts') {
-    const m = new Map<string, { name: string; man: string; qty: number; unit: string; rev: number; sale: number; cost: number; unknown: number }>();
-    for (const o of orders)
-      for (const p of o.parts) {
-        const g = group(m, `${p.name}|${p.manufacturer}`, () => ({
-          name: p.name, man: p.manufacturer, qty: 0, unit: p.unit, rev: 0, sale: 0, cost: 0, unknown: 0,
-        }));
-        g.qty += p.qty;
-        g.rev += p.net;
-        if (p.cost === null) g.unknown += 1;
-        else {
-          g.sale += p.net;
-          g.cost += p.cost;
-        }
-      }
-    return {
-      cols: [
-        { label: 'Кол-во', kind: 'num', minor: true },
-        { label: 'Продажа', kind: 'money' },
-        { label: 'Закупка', kind: 'money', minor: true },
-        { label: 'Наценка', kind: 'money' },
-        { label: 'Наценка %', kind: 'pct' },
-      ],
-      defaultSort: 3,
-      rows: [...m].map(([key, g]) => ({
-        key,
-        name: g.name,
-        sub: g.man,
-        vals: [g.qty, g.rev, g.cost || null, g.cost ? g.sale - g.cost : null, g.cost ? (g.sale - g.cost) / g.cost : null],
-        revenue: g.rev,
-        unknown: g.unknown,
-      })),
-    };
-  }
-
-  const byClient = kind === 'clients';
-  const m = new Map<string, MockOrder[]>();
-  for (const o of orders) group(m, byClient ? o.client : o.vehicle, () => [] as MockOrder[]).push(o);
-  return {
-    cols: [
-      { label: 'Нарядов', kind: 'num', minor: true },
-      { label: 'Выручка', kind: 'money' },
-      { label: 'Прибыль', kind: 'money' },
-      { label: 'Маржа', kind: 'pct', minor: true },
-      { label: 'Средний чек', kind: 'money', minor: true },
-    ],
-    defaultSort: byClient ? 1 : 2,
-    rows: [...m].map(([name, list]) => {
-      const t = totals(list);
-      const last = list.reduce((a, o) => (o.closedAt > a ? o.closedAt : a), list[0].closedAt);
-      return {
-        key: name,
-        name,
-        sub: byClient ? `${list[0].vehicle} · закрыт ${f(last, 'd MMM')}` : undefined,
-        vals: [t.orders, t.revenue, t.profit, t.margin, t.avgCheck],
-        revenue: t.revenue,
-        unknown: t.unknownCount,
-      };
-    }),
-  };
 }
 
 /** Относительное изменение; `null`, когда сравнивать не с чем. */

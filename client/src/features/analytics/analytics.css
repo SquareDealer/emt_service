@@ -16,8 +16,6 @@
   --an-hatch: oklch(0.58 0.012 240);
 }
 
-.an-demo { margin-left: var(--sp-2); }
-
 /* ---- период ---- */
 .an-period { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
 .an-stepper { display: flex; align-items: center; gap: var(--sp-1); }
@@ -284,3 +282,10 @@ line.an-base { stroke: var(--border-strong); stroke-width: 1; shape-rendering: c
   .an-fill-row { grid-template-columns: minmax(0, 1fr) 104px 32px; }
   .an-fill-sale, .an-fill-m { display: none; }
 }
+
+/* ---- обновление и ошибка ---- */
+.an-live[data-stale] { opacity: 0.55; }
+.an-live { transition: opacity var(--dur) var(--ease); }
+.an-error { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-2); padding: var(--sp-4); font-size: var(--text-sm); }
+.an-row[role='link'] { cursor: pointer; }
+.an-row[role='link']:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }

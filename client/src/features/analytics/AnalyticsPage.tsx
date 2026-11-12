@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowDown,
@@ -10,24 +12,24 @@ import {
   Minus,
   Table2,
 } from 'lucide-react';
-import { EmptyState } from '../../components/ui';
-import { generateOrders } from './mock';
+import { EmptyState, ListSkeleton, Skeleton } from '../../components/ui';
+import { api } from '../../lib/api';
+import type { AnalyticsSummary } from '../../lib/types';
 import {
   PERIOD_LABEL,
-  breakdown,
   comparisonFor,
   delta,
-  inRange,
   periodOf,
-  series,
   shift,
-  totals,
   type BreakdownCol,
   type BreakdownKind,
+  type Period,
   type PeriodKind,
 } from './analytics';
 import { count, pct, rub, signedPct } from './fmt';
+import { summaryParams } from './query';
 import { TrendChart, TrendTable } from './TrendChart';
+import { breakdownView, bucketsView, type ChartBucket } from './view';
 import { CostFillModal } from './CostFillModal';
 import './analytics.css';
 
@@ -62,10 +64,32 @@ function Delta({ value, points, title }: { value: number | null; points?: boolea
   );
 }
 
+/** Данные хранятся вместе с периодом, которому принадлежат: при keepPreviousData `data` — от прошлого периода. */
+interface Loaded {
+  period: Period;
+  cmpLabel: string;
+  summary: AnalyticsSummary;
+}
+
+const BACK = { to: '/analytics', label: 'Аналитика' };
+
+function KpiSkeleton() {
+  return (
+    <dl className="an-kpi-row" aria-busy="true">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div key={i} className="an-kpi">
+          <Skeleton w="55%" h={12} />
+          <Skeleton w="70%" h={22} />
+          <Skeleton w="45%" h={12} />
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 export function AnalyticsPage() {
+  const navigate = useNavigate();
   const now = useMemo(() => new Date(), []);
-  // ПРОТОТИП: демо-наряды в локальном состоянии, чтобы «Указать закупку» пересчитывала экран.
-  const [orders] = useState(() => generateOrders(now));
 
   const [kind, setKind] = useState<PeriodKind>('month');
   const [anchor, setAnchor] = useState(now);
@@ -79,15 +103,39 @@ export function AnalyticsPage() {
   const cmp = useMemo(() => comparisonFor(period, now), [period, now]);
   const isCurrent = cmp.partial;
 
-  const current = useMemo(() => inRange(orders, period), [orders, period]);
-  const t = useMemo(() => totals(current), [current]);
-  const prev = useMemo(() => totals(inRange(orders, cmp.previous)), [orders, cmp]);
-  const buckets = useMemo(() => series(orders, period), [orders, period]);
+  const { edges, prev: prevRange } = summaryParams(period, cmp);
+  const { data, isLoading, isError, isPlaceholderData, refetch } = useQuery({
+    queryKey: ['analytics', 'summary', edges.join(','), prevRange.from, prevRange.to],
+    queryFn: async (): Promise<Loaded> => ({
+      period,
+      cmpLabel: cmp.label,
+      summary: await api.analyticsSummary({ edges, prev: prevRange }),
+    }),
+    placeholderData: keepPreviousData,
+  });
+  const stale = isPlaceholderData || undefined;
 
-  const bd = useMemo(() => breakdown(current, tab), [current, tab]);
-  const sortCol = sort ?? bd.defaultSort;
+  // Корзины склеиваются с периодом данных, а не с выбранным сейчас; сбой склейки — та же панель ошибки.
+  const buckets = useMemo(() => {
+    if (!data) return { ok: null as ChartBucket[] | null, failed: false };
+    try {
+      return { ok: bucketsView(data.period, data.summary.buckets), failed: false };
+    } catch {
+      return { ok: null, failed: true };
+    }
+  }, [data]);
+
+  const summary = data?.summary;
+  const t = summary?.totals;
+  const prev = summary?.previous ?? null;
+
+  const bd = useMemo(
+    () => (summary ? breakdownView(tab, summary.breakdown) : null),
+    [summary, tab],
+  );
+  const sortCol = sort ?? bd?.defaultSort ?? 0;
   const rows = useMemo(
-    () => [...bd.rows].sort((a, b) => (b.vals[sortCol] ?? -Infinity) - (a.vals[sortCol] ?? -Infinity)),
+    () => [...(bd?.rows ?? [])].sort((a, b) => (b.vals[sortCol] ?? -Infinity) - (a.vals[sortCol] ?? -Infinity)),
     [bd, sortCol],
   );
   const revenueTotal = rows.reduce((s, r) => s + r.revenue, 0);
@@ -99,22 +147,24 @@ export function AnalyticsPage() {
     setShowAll(false);
   };
 
+  const failed = isError || buckets.failed;
+
   const kpis = [
-    { label: 'Выручка', value: rub(t.revenue), d: delta(t.revenue, prev.revenue), lead: true },
+    { label: 'Выручка', value: rub(t?.revenue ?? 0), d: delta(t?.revenue ?? 0, prev?.revenue ?? null), lead: true },
     {
       label: 'Валовая прибыль',
-      value: rub(t.profit),
-      d: delta(t.profit, prev.profit),
-      missing: t.unknownCount,
+      value: rub(t?.profit ?? 0),
+      d: delta(t?.profit ?? 0, prev?.profit ?? null),
+      missing: t?.unknown_count,
     },
     {
       label: 'Маржа',
-      value: pct(t.margin, 1),
-      d: t.margin !== null && prev.margin !== null ? t.margin - prev.margin : null,
+      value: pct(t?.margin ?? null, 1),
+      d: t?.margin != null && prev?.margin != null ? t.margin - prev.margin : null,
       points: true,
     },
-    { label: 'Закрыто нарядов', value: String(t.orders), d: delta(t.orders, prev.orders) },
-    { label: 'Средний чек', value: rub(t.avgCheck), d: delta(t.avgCheck, prev.avgCheck) },
+    { label: 'Закрыто нарядов', value: String(t?.orders ?? 0), d: delta(t?.orders ?? 0, prev?.orders ?? null) },
+    { label: 'Средний чек', value: rub(t?.avg_check ?? null), d: delta(t?.avg_check ?? null, prev?.avg_check ?? null) },
   ];
 
   return (
@@ -123,7 +173,7 @@ export function AnalyticsPage() {
         <div>
           <h1 className="page-title">Аналитика</h1>
           <p className="page-sub">
-            Закрытые заказ-наряды, по дате закрытия <span className="badge an-demo">демо-данные</span>
+            Закрытые заказ-наряды, по дате закрытия
           </p>
         </div>
 
@@ -168,7 +218,19 @@ export function AnalyticsPage() {
       </div>
 
       {/* Сводка: одна полоса, не ряд карточек */}
-      <section className="panel an-kpis" aria-label="Итоги периода">
+      {failed ? (
+        <div className="panel an-error" role="alert">
+          <span>Не удалось загрузить аналитику</span>
+          <button type="button" className="btn btn-default btn-sm" onClick={() => refetch()}>
+            Повторить
+          </button>
+        </div>
+      ) : (
+        <>
+      <section className="panel an-kpis an-live" data-stale={stale} aria-label="Итоги периода">
+        {isLoading || !t ? (
+          <KpiSkeleton />
+        ) : (
         <dl className="an-kpi-row">
           {kpis.map((k) => (
             <div key={k.label} className="an-kpi" data-lead={k.lead || undefined}>
@@ -188,14 +250,42 @@ export function AnalyticsPage() {
               </dt>
               <dd className="an-kpi-value">{k.value}</dd>
               <dd>
-                <Delta value={k.d} points={k.points} title={`Изменение ${cmp.label}`} />
+                <Delta value={k.d} points={k.points} title={`Изменение ${data?.cmpLabel ?? cmp.label}`} />
               </dd>
             </div>
           ))}
         </dl>
+        )}
       </section>
 
-      {t.orders === 0 ? (
+      {isLoading || !t || !bd ? (
+        <>
+          <div className="an-grid">
+            <section className="panel" aria-busy="true">
+              <div className="panel-head">
+                <h2 className="panel-title">Динамика выручки</h2>
+              </div>
+              <Skeleton h={254} />
+            </section>
+            <section className="panel" aria-busy="true">
+              <div className="panel-head">
+                <h2 className="panel-title">Из чего сложилась прибыль</h2>
+              </div>
+              <div className="col gap-3" style={{ padding: 'var(--sp-3)' }}>
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <Skeleton key={i} h={16} />
+                ))}
+              </div>
+            </section>
+          </div>
+          <section className="panel an-bd" aria-busy="true">
+            <div className="panel-head">
+              <h2 className="panel-title">Что выгодно</h2>
+            </div>
+            <ListSkeleton rows={5} />
+          </section>
+        </>
+      ) : t.orders === 0 ? (
         <div className="panel">
           <EmptyState
             icon={<BarChart3 />}
@@ -205,7 +295,7 @@ export function AnalyticsPage() {
         </div>
       ) : (
         <>
-          <div className="an-grid">
+          <div className="an-grid an-live" data-stale={stale}>
             <section className="panel">
               <div className="panel-head">
                 <h2 className="panel-title">Динамика выручки</h2>
@@ -233,9 +323,9 @@ export function AnalyticsPage() {
                 </div>
               </div>
               {view === 'chart' ? (
-                <TrendChart buckets={buckets} now={now} />
+                <TrendChart buckets={buckets.ok ?? []} now={now} />
               ) : (
-                <TrendTable buckets={buckets} now={now} />
+                <TrendTable buckets={buckets.ok ?? []} now={now} />
               )}
             </section>
 
@@ -252,16 +342,16 @@ export function AnalyticsPage() {
                 </div>
                 <div>
                   <dt>Запчасти, продажа</dt>
-                  <dd className="mono">{rub(t.partsSale)}</dd>
+                  <dd className="mono">{rub(t.parts_sale)}</dd>
                 </div>
                 <div>
                   <dt>Запчасти, закупка</dt>
-                  <dd className="mono">−{rub(t.partsCost)}</dd>
+                  <dd className="mono">−{rub(t.parts_cost)}</dd>
                 </div>
                 <div className="an-ledger-sub">
                   <dt>
                     Наценка на запчастях{' '}
-                    <span className="faint">· {pct(t.partsCost ? t.markup / t.partsCost : null)}</span>
+                    <span className="faint">· {pct(t.parts_cost ? t.markup / t.parts_cost : null)}</span>
                   </dt>
                   <dd className="mono">{rub(t.markup)}</dd>
                 </div>
@@ -275,12 +365,12 @@ export function AnalyticsPage() {
                 </div>
               </dl>
 
-              {t.unknownCount > 0 && (
+              {t.unknown_count > 0 && (
                 <div className="an-warn">
                   <AlertTriangle size={16} aria-hidden />
                   <div className="col gap-2">
                     <span>
-                      У {t.unknownCount} запчастей на <span className="mono">{rub(t.unknownSale)}</span> не
+                      У {t.unknown_count} запчастей на <span className="mono">{rub(t.unknown_sale)}</span> не
                       указана закупка. В выручке они есть, в прибыли — нет.
                     </span>
                     <button className="btn btn-default btn-sm" onClick={() => setFillOpen(true)}>
@@ -292,7 +382,7 @@ export function AnalyticsPage() {
             </section>
           </div>
 
-          <section className="panel an-bd">
+          <section className="panel an-bd an-live" data-stale={stale}>
             <div className="panel-head">
               <h2 className="panel-title">Что выгодно</h2>
               <div className="seg" role="group" aria-label="Разрез">
@@ -332,7 +422,20 @@ export function AnalyticsPage() {
                 {visible.map((r) => {
                   const share = revenueTotal ? r.revenue / revenueTotal : 0;
                   return (
-                    <div key={r.key} className="list-row an-row">
+                    <div
+                      key={r.key}
+                      className="list-row an-row"
+                      {...(r.href
+                        ? {
+                            role: 'link',
+                            tabIndex: 0,
+                            onClick: () => navigate(r.href!, { state: { back: BACK } }),
+                            onKeyDown: (e: React.KeyboardEvent) => {
+                              if (e.key === 'Enter') navigate(r.href!, { state: { back: BACK } });
+                            },
+                          }
+                        : {})}
+                    >
                       <span className="col" style={{ minWidth: 0 }}>
                         <span className="fw-500 truncate">{r.name}</span>
                         {(r.sub || r.unknown) && (
@@ -370,6 +473,8 @@ export function AnalyticsPage() {
               )}
             </div>
           </section>
+        </>
+      )}
         </>
       )}
 
