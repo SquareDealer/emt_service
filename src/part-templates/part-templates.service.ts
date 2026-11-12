@@ -58,18 +58,29 @@ export class PartTemplatesService {
     return t;
   }
 
-  create(dto: PartTemplateInput): Promise<PartTemplate> {
+  /**
+   * Ответ перечитывается из базы: TypeORM после save() выкидывает select:false
+   * колонку из возвращаемой сущности, и владелец не увидел бы только что
+   * записанную закупку (вскрыто живым прогоном scripts/verify-analytics.mjs).
+   */
+  async create(dto: PartTemplateInput, withCost = false): Promise<PartTemplate> {
     const t = this.repo.create(this.normalize(dto));
     if (dto.purchase_price !== undefined) t.purchase_price = dto.purchase_price;
-    return this.repo.save(t);
+    const saved = await this.repo.save(t);
+    return this.findOne(saved.id, withCost);
   }
 
-  async update(id: string, dto: Partial<PartTemplateInput>): Promise<PartTemplate> {
+  async update(
+    id: string,
+    dto: Partial<PartTemplateInput>,
+    withCost = false,
+  ): Promise<PartTemplate> {
     const t = await this.findOne(id);
     Object.assign(t, this.normalize({ ...t, ...dto } as PartTemplateInput));
     // Only touch the cost when the caller sent it: t was loaded without the column.
     if (dto.purchase_price !== undefined) t.purchase_price = dto.purchase_price;
-    return this.repo.save(t);
+    await this.repo.save(t);
+    return this.findOne(id, withCost);
   }
 
   /**

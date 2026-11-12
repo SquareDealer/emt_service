@@ -82,6 +82,12 @@ Settings(key-value: labor_rate, company_*, vat_rate, расписание)
   только с `assigned_master_id == он сам` (чужой по id → 404, не 403). Скоупинг в
   `WorkOrdersCoreService` (`scope` + `assertAccess`), не на фронте. Мастер создаёт/копирует наряд →
   авто-назначается себе. `users.is_active=false` → запрет логина.
+- **Закупочная цена** (`part_lines.purchase_price`, `part_templates.purchase_price`) — `select: false`,
+  читается только через `addSelect`, видит и пишет **только владелец** (403 остальным). Снимок
+  копируется в строку при добавлении/разворачивании шаблона/`duplicate`. `normalize()` каталога её не
+  трогает. `save()` частичной сущности колонку не затирает (проверено на живой БД), но **выкидывает её
+  из возвращаемой сущности** — поэтому `create`/`update` каталога перечитывают строку через `findOne`.
+  Правка закупки закрытого наряда `total_frozen` не двигает. Сценарий — `scripts/verify-analytics.mjs` (AC-11).
 - **Видимость резервов — другая:** `user_id IS NULL OR user_id = viewer`. Общий резерв обязан быть
   виден мастеру, иначе он перезапишет занятый подъёмник.
 
@@ -102,6 +108,7 @@ migrations/      Init … AddWorkOrderComplaintRecommendation (MVP),
                  1719400000000 AddPriceListAndPartTemplates
                  1719500000000 AddLineGroupsAndTemplateParts
                  1719600000000 AddTaskTemplatePartSlot       — роль детали в работе
+                 1719700000000 AddPartPurchasePrice          — закупка за единицу (part_lines, part_templates)
 common/          phone.util, numeric.transformer, vehicle-label.util, rubles-in-words, public.decorator
 auth/            JWT, глобальный JwtAuthGuard + @Public(); @CurrentUser(), @Roles()+RolesGuard
 users/  clients/ (+import)  vehicles/  vehicle-generations/  part-templates/  calendar-blocks/
@@ -111,6 +118,7 @@ work-orders/     work-orders-core.service (загрузка/скоупинг/rec
                  work-orders.service (наряд целиком, календарь, архив, duplicate),
                  work-order-lines.service (строки, блоки, разворачивание шаблона),
                  pricing.service, pdf/work-order-pdf.service
+analytics/       сводка владельца: analytics-calc (чистые расчёты), service (SQL), controller (@Roles('owner'))
 settings/  search/  seed/  assets/fonts/ (DejaVu — кириллица в PDF, читаются из process.cwd())
 ```
 
@@ -126,6 +134,8 @@ API (всё под JWT кроме `/health`, `/auth/login`):
   `POST /works` — работа + цена поколения одной транзакцией)
 - `template-preview` / `apply-template` принимают `generation_id`: нет параметра → поколение машины,
   `base` (в query) / `null` (в теле) → базовые цены, uuid → это поколение
+- `/analytics` (только owner): `/summary?edges=…[&prev_from&prev_to]`, `/missing-costs?from&to`,
+  `/part-costs/:workOrderId`, `PATCH /part-costs` (`{items:[{part_line_id, purchase_price}]}`)
 - `/calendar-blocks`, `/task-templates`, `/users`, `/settings`, `/search?q=`
 
 Запись в каталоги (`task-templates`, `part-templates`, `vehicle-generations`, `price-list`) —
@@ -181,7 +191,7 @@ index.css дизайн-токены (OKLCH, light/dark via [data-theme]), ком
 ## Проверки / тесты
 
 ```bash
-npx tsc --noEmit && npm test && npm run lint -- --max-warnings=0 && npm run build   # backend, 188 тестов
+npx tsc --noEmit && npm test && npm run lint -- --max-warnings=0 && npm run build   # backend, 267 тестов
 cd client && npm run typecheck && npm run lint && npm test && npm run build          # client, 49 тестов
 cd client && npx playwright test                                                     # 42 e2e
 ```
@@ -200,7 +210,7 @@ cd client && npx playwright test                                                
   попадают — `tsconfig.build.json` исключает `**/*spec.ts`). `lib/schedule.spec.ts`.
 - Playwright (`client/e2e/`, все `/api/**` застабены): mobile-вёрстка + календарь
   (клик по пустому месту, протяжка панорамирует, вид резерва).
-- Acceptance AC-1..10 — в `checks.md`.
+- Acceptance AC-1..11 — в `checks.md`.
 - Backend tsconfig исключает `client/`.
 
 ## Конвенции

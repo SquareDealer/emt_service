@@ -27,7 +27,7 @@ function harness(row?: Record<string, unknown>) {
   const repo = {
     createQueryBuilder: () => { calls.queries++; return qb; },
     create: (x: Record<string, unknown>) => ({ ...x }),
-    save: async (x: Record<string, unknown>) => { saved.push(x); return x; },
+    save: async (x: Record<string, unknown>) => { saved.push(x); return { id: 'p1', ...x }; },
   };
   return {
     service: new PartTemplatesService(repo as never),
@@ -108,15 +108,26 @@ describe('PartTemplatesService purchase_price writes', () => {
   });
 
   it('create с purchase_price: 0 сохраняет ноль, а не null', async () => {
-    const h = harness();
+    const h = harness({ id: 'p1', name: 'Хомут', purchase_price: 0 });
     await h.service.create({ name: 'Хомут', purchase_price: 0 });
     expect(h.saved[0].purchase_price).toBe(0);
   });
 
   it('create без purchase_price не выставляет поле', async () => {
-    const h = harness();
+    const h = harness({ id: 'p1', name: 'Хомут' });
     await h.service.create({ name: 'Хомут' });
     expect(h.saved[0]).not.toHaveProperty('purchase_price');
+  });
+
+  // save() теряет select:false колонку — ответ должен идти из перечитанной строки.
+  it('create/update для владельца возвращают закупку, для остальных — нет', async () => {
+    const row = { id: 'p1', name: 'Фильтр', purchase_price: 520 };
+    const own = harness(row);
+    expect((await own.service.create({ name: 'Фильтр', purchase_price: 520 }, true)).purchase_price).toBe(520);
+    expect((await own.service.update('p1', { name: 'Ф' }, true)).purchase_price).toBe(520);
+    const other = harness(row);
+    expect(await other.service.create({ name: 'Фильтр', purchase_price: 520 })).not.toHaveProperty('purchase_price');
+    expect(await other.service.update('p1', { name: 'Ф' })).not.toHaveProperty('purchase_price');
   });
 });
 

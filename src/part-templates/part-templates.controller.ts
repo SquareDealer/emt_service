@@ -113,7 +113,7 @@ export class PartTemplatesController {
   @Roles('owner', 'master_receptionist')
   create(@CurrentUser() user: CurrentUserData, @Body() dto: CreatePartTemplateDto) {
     assertCostAccess(user, dto);
-    return this.parts.create(dto);
+    return this.parts.create(dto, user.role === 'owner');
   }
 
   @Patch(':id')
@@ -124,7 +124,7 @@ export class PartTemplatesController {
     @Body() dto: UpdatePartTemplateDto,
   ) {
     assertCostAccess(user, dto);
-    return this.parts.update(id, dto);
+    return this.parts.update(id, dto, user.role === 'owner');
   }
 
   /** Soft delete — estimate lines reference catalog entries. */
