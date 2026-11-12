@@ -47,6 +47,11 @@ export interface ApplyTemplateDto {
   part_template_ids?: string[];
   /** Per-part quantity overrides, keyed by part_template_id. */
   qty?: Record<string, number>;
+  /**
+   * Which generation's prices and parts to use: absent → the car's own,
+   * null → the shared base, uuid → that generation.
+   */
+  generation_id?: string | null;
 }
 
 /** Next free position, so a new line lands at the end of its list. */
@@ -273,15 +278,20 @@ export class WorkOrderLinesService {
    * What applying a price-list entry to this car would add. Returned for
    * confirmation rather than inserted straight away: an unwanted part left in
    * by accident becomes a wrong quote handed to the customer.
+   *
+   * `generationId`: undefined → the car's own generation, null → the shared
+   * base prices, uuid → that generation. Null is a deliberate choice («Базовые
+   * цены») and must not be swapped back for the car's generation.
    */
   async previewTemplate(
     id: string,
     templateId: string,
     viewer: Viewer,
+    generationId?: string | null,
   ): Promise<TemplatePreview> {
     const wo = await this.core.assertOpen(id, viewer);
     const tpl = await this.templates.findOne(templateId);
-    const generationId = wo.vehicle?.generation_id ?? null;
+    if (generationId === undefined) generationId = wo.vehicle?.generation_id ?? null;
     const rate = await this.settings.getLaborRate();
     const resolved = await this.priceList.resolveForLine(templateId, generationId, rate);
 
@@ -305,7 +315,7 @@ export class WorkOrderLinesService {
    */
   async applyTemplate(id: string, dto: ApplyTemplateDto, viewer: Viewer): Promise<WorkOrder> {
     const wo = await this.core.assertOpen(id, viewer);
-    const preview = await this.previewTemplate(id, dto.template_id, viewer);
+    const preview = await this.previewTemplate(id, dto.template_id, viewer, dto.generation_id);
 
     const chosen = dto.part_template_ids
       ? preview.parts.filter((p) => dto.part_template_ids!.includes(p.part_template_id))
