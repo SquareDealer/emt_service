@@ -208,6 +208,14 @@ describe('breakdown', () => {
     expect(row.markup_pct).toBeCloseTo(430 / 520, 10);
   });
 
+  it('запчасти: литры сохраняют три знака после запятой', () => {
+    const bd = breakdown([
+      order({ parts: [aPart({ key: 'oil', unit: 'l', qty: 0.125, net: 100, cost: 50 })] }),
+      order({ parts: [aPart({ key: 'oil', unit: 'l', qty: 0.25, net: 200, cost: 100 })] }),
+    ]);
+    expect(bd.parts[0].qty).toBe(0.375);
+  });
+
   it('клиенты: last_closed_at и vehicle берутся из последнего наряда', () => {
     const bd = breakdown([
       order({ closed_at: new Date('2026-11-05T10:00:00Z'), vehicle: 'BMW X5', client: { id: 'c1', name: 'Иванов И.' } }),

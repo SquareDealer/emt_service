@@ -215,7 +215,7 @@ export function breakdown(orders: AnalyticsOrder[]): Breakdown {
       const cost = g.known > 0 ? r2(g.cost) : null;
       const markup = g.known > 0 ? r2(g.sale - g.cost) : null;
       return {
-        key, name: g.name, manufacturer: g.manufacturer, unit: g.unit, qty: r2(g.qty),
+        key, name: g.name, manufacturer: g.manufacturer, unit: g.unit, qty: Math.round((g.qty + Number.EPSILON) * 1000) / 1000,
         revenue: r2(g.revenue), cost, markup,
         markup_pct: markup !== null && g.cost > 0 ? (g.sale - g.cost) / g.cost : null,
         unknown_count: g.unknown,
