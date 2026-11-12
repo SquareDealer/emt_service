@@ -26,3 +26,8 @@ export function canManageUsers(role: R): boolean {
 export function isPlainMaster(role: R): boolean {
   return role === 'master';
 }
+
+/** Money analytics (revenue, purchase cost, margin) is the owner's eyes only. */
+export function canSeeAnalytics(role: R): boolean {
+  return role === 'owner';
+}

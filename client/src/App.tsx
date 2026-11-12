@@ -8,10 +8,12 @@ import { WorkOrderPage } from './features/work-orders/WorkOrderPage';
 import { BoardPage } from './features/board/BoardPage';
 import { PriceListPage } from './features/price-list/PriceListPage';
 import { CalendarPage } from './features/calendar/CalendarPage';
+import { AnalyticsPage } from './features/analytics/AnalyticsPage';
 import { ArchivePage } from './features/archive/ArchivePage';
 import { ImportPage } from './features/import/ImportPage';
 import { SettingsPage } from './features/settings/SettingsPage';
 import { Spinner } from './components/ui';
+import { canSeeAnalytics } from './lib/roles';
 
 export function App() {
   const { user, ready } = useAuth();
@@ -45,6 +47,7 @@ export function App() {
         <Route path="/price-list" element={<PriceListPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/archive" element={<ArchivePage />} />
+        {canSeeAnalytics(user.role) && <Route path="/analytics" element={<AnalyticsPage />} />}
         <Route path="/import" element={<ImportPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/clients" replace />} />
