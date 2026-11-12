@@ -10,6 +10,8 @@ export interface PartTemplateInput {
   catalog_number?: string | null;
   unit?: PartUnit;
   default_price?: number | null;
+  /** Owner-only; kept out of normalize() so an edit by a receptionist never overwrites it. */
+  purchase_price?: number | null;
   active?: boolean;
 }
 
@@ -28,8 +30,14 @@ export class PartTemplatesService {
    * Search across name, article and brand — a parts catalog you cannot search
    * by article is unusable. Backed by the trigram indexes from the migration.
    */
-  async findAll(q?: string, includeInactive = false): Promise<PartTemplate[]> {
+  async findAll(
+    q?: string,
+    includeInactive = false,
+    withCost = false,
+  ): Promise<PartTemplate[]> {
     const qb = this.repo.createQueryBuilder('p');
+    // purchase_price is select:false — it only comes back when asked for.
+    if (withCost) qb.addSelect('p.purchase_price');
     if (!includeInactive) qb.where('p.active = true');
     const term = (q ?? '').trim();
     if (term) {
@@ -42,19 +50,25 @@ export class PartTemplatesService {
     return qb.orderBy('p.name', 'ASC').limit(PART_TEMPLATES_LIMIT).getMany();
   }
 
-  async findOne(id: string): Promise<PartTemplate> {
-    const t = await this.repo.findOne({ where: { id } });
+  async findOne(id: string, withCost = false): Promise<PartTemplate> {
+    const qb = this.repo.createQueryBuilder('p').where('p.id = :id', { id });
+    if (withCost) qb.addSelect('p.purchase_price');
+    const t = await qb.getOne();
     if (!t) throw new NotFoundException('Запчасть не найдена в каталоге');
     return t;
   }
 
   create(dto: PartTemplateInput): Promise<PartTemplate> {
-    return this.repo.save(this.repo.create(this.normalize(dto)));
+    const t = this.repo.create(this.normalize(dto));
+    if (dto.purchase_price !== undefined) t.purchase_price = dto.purchase_price;
+    return this.repo.save(t);
   }
 
   async update(id: string, dto: Partial<PartTemplateInput>): Promise<PartTemplate> {
     const t = await this.findOne(id);
     Object.assign(t, this.normalize({ ...t, ...dto } as PartTemplateInput));
+    // Only touch the cost when the caller sent it: t was loaded without the column.
+    if (dto.purchase_price !== undefined) t.purchase_price = dto.purchase_price;
     return this.repo.save(t);
   }
 
@@ -66,6 +80,20 @@ export class PartTemplatesService {
     const t = await this.findOne(id);
     t.active = false;
     return this.repo.save(t);
+  }
+
+  /** Purchase price by catalog id (null when unset or the id is unknown). */
+  async purchasePrices(ids: string[]): Promise<Map<string, number | null>> {
+    const out = new Map<string, number | null>();
+    if (ids.length === 0) return out;
+    const rows = await this.repo
+      .createQueryBuilder('p')
+      .select('p.id')
+      .addSelect('p.purchase_price')
+      .where('p.id IN (:...ids)', { ids })
+      .getMany();
+    for (const r of rows) out.set(r.id, r.purchase_price ?? null);
+    return out;
   }
 
   count(): Promise<number> {

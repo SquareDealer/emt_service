@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Delete,
   Get,
   Param,
@@ -11,6 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { IsBoolean, IsIn, IsNumber, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { CurrentUser, CurrentUserData } from '../auth/current-user.decorator';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { PartUnit } from '../entities/part-line.entity';
@@ -37,6 +39,11 @@ class CreatePartTemplateDto {
   @IsNumber()
   @Min(0)
   default_price?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  purchase_price?: number | null;
 
   @IsOptional()
   @IsBoolean()
@@ -67,8 +74,19 @@ class UpdatePartTemplateDto {
   default_price?: number | null;
 
   @IsOptional()
+  @IsNumber()
+  @Min(0)
+  purchase_price?: number | null;
+
+  @IsOptional()
   @IsBoolean()
   active?: boolean;
+}
+
+function assertCostAccess(user: CurrentUserData, dto: { purchase_price?: number | null }) {
+  if (dto.purchase_price !== undefined && user.role !== 'owner') {
+    throw new ForbiddenException('Закупочную цену меняет только владелец');
+  }
 }
 
 /** Anyone signed in may read the catalog; only owner/receptionist may shape it. */
@@ -78,24 +96,34 @@ export class PartTemplatesController {
   constructor(private readonly parts: PartTemplatesService) {}
 
   @Get()
-  findAll(@Query('q') q?: string, @Query('all') all?: string) {
-    return this.parts.findAll(q, all === 'true' || all === '1');
+  findAll(
+    @CurrentUser() user: CurrentUserData,
+    @Query('q') q?: string,
+    @Query('all') all?: string,
+  ) {
+    return this.parts.findAll(q, all === 'true' || all === '1', user.role === 'owner');
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.parts.findOne(id);
+  findOne(@CurrentUser() user: CurrentUserData, @Param('id', ParseUUIDPipe) id: string) {
+    return this.parts.findOne(id, user.role === 'owner');
   }
 
   @Post()
   @Roles('owner', 'master_receptionist')
-  create(@Body() dto: CreatePartTemplateDto) {
+  create(@CurrentUser() user: CurrentUserData, @Body() dto: CreatePartTemplateDto) {
+    assertCostAccess(user, dto);
     return this.parts.create(dto);
   }
 
   @Patch(':id')
   @Roles('owner', 'master_receptionist')
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdatePartTemplateDto) {
+  update(
+    @CurrentUser() user: CurrentUserData,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePartTemplateDto,
+  ) {
+    assertCostAccess(user, dto);
     return this.parts.update(id, dto);
   }
 
