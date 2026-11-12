@@ -1,4 +1,4 @@
-import type { LaborLine, PartLine, WorkOrder } from './types';
+import type { Client, LaborLine, PartLine, WorkOrder } from './types';
 
 /** Format a number as RUB without trailing kopecks unless present. */
 export function money(n: number | null | undefined): string {
@@ -212,4 +212,20 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 export function sourceLabel(s: string | undefined): string {
   return s ? SOURCE_LABEL[s] ?? s : '';
+}
+
+/**
+ * A client's deal history: what came over from the old base plus every order
+ * closed here since. Either source alone under-reports a long-standing client.
+ */
+export function clientDeals(
+  c: Pick<
+    Client,
+    'imported_deals_count' | 'imported_deals_sum' | 'closed_orders_count' | 'closed_orders_sum'
+  >,
+): { count: number; sum: number } {
+  return {
+    count: (c.imported_deals_count ?? 0) + (c.closed_orders_count ?? 0),
+    sum: (c.imported_deals_sum ?? 0) + (c.closed_orders_sum ?? 0),
+  };
 }

@@ -118,6 +118,9 @@ export function WorkOrderPage() {
     qc.invalidateQueries({ queryKey: ['work-orders'] });
     qc.invalidateQueries({ queryKey: ['board'] });
     qc.invalidateQueries({ queryKey: ['calendar'] });
+    // Closing / reopening an order changes the client's deal history.
+    qc.invalidateQueries({ queryKey: ['clients'] });
+    qc.invalidateQueries({ queryKey: ['client'] });
   };
 
   const mUpdate = useMutation({

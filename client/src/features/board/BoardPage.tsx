@@ -47,6 +47,8 @@ export function BoardPage() {
       qc.invalidateQueries({ queryKey: ['board'] });
       qc.invalidateQueries({ queryKey: ['work-orders'] });
       qc.invalidateQueries({ queryKey: ['work-order'] }); // detail page, if open
+      qc.invalidateQueries({ queryKey: ['clients'] }); // deal history counts closed orders
+      qc.invalidateQueries({ queryKey: ['client'] });
     },
     onError: (e) => {
       toast((e as Error).message, 'error');

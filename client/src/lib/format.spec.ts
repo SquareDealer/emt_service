@@ -10,6 +10,7 @@ import {
   partTotal,
   subtotal,
   vehicleLabel,
+  clientDeals,
 } from './format';
 import type { LaborLine, PartLine, WorkOrder } from './types';
 
@@ -129,5 +130,25 @@ describe('vehicleLabel', () => {
   it('falls back only when there is nothing to show', () => {
     expect(vehicleLabel(null)).toBe('Автомобиль');
     expect(vehicleLabel({ make: 'BMW' })).toBe('BMW');
+  });
+});
+
+describe('clientDeals', () => {
+  it('sums the imported history with orders closed in the CRM', () => {
+    expect(
+      clientDeals({
+        imported_deals_count: 2,
+        imported_deals_sum: 1000,
+        closed_orders_count: 3,
+        closed_orders_sum: 4500.5,
+      }),
+    ).toEqual({ count: 5, sum: 5500.5 });
+  });
+
+  it('tolerates a cached client without the live fields', () => {
+    expect(clientDeals({ imported_deals_count: 0, imported_deals_sum: 0 } as never)).toEqual({
+      count: 0,
+      sum: 0,
+    });
   });
 });
