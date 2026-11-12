@@ -95,13 +95,13 @@
 
 .disc-cell { display: flex; gap: 4px; min-width: 0; }
 .disc-cell .cell-input { flex: 1 1 auto; min-width: 0; }
-.disc-cell .unit-select { flex: 0 0 40px; height: 1.875rem; padding: 0 2px 0 4px; border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--bg); color: var(--ink); font-size: var(--text-xs); }
+.disc-cell .unit-select { flex: 0 0 52px; height: 1.875rem; padding: 0 18px 0 6px; border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--bg); color: var(--ink); font-size: var(--text-xs); }
 /* A discount is a reduction — show it as one. */
 .smeta-row .disc { color: var(--danger); }
 
 .qty-cell { display: flex; gap: 4px; min-width: 0; }
 .qty-cell .cell-input { flex: 1 1 auto; min-width: 0; }
-.qty-cell .unit-select { flex: 0 0 46px; height: 1.875rem; padding: 0 2px 0 4px; border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--bg); color: var(--ink); font-size: var(--text-xs); }
+.qty-cell .unit-select { flex: 0 0 52px; height: 1.875rem; padding: 0 18px 0 6px; border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--bg); color: var(--ink); font-size: var(--text-xs); }
 
 /* summary */
 .wo-summary { position: sticky; top: calc(57px + var(--sp-4)); }
@@ -126,4 +126,16 @@
   .part-grid { min-width: 740px; grid-template-columns: minmax(180px, 1fr) 116px 92px 96px 96px 92px; }
   .smeta-row .del, .smeta-row .edit { opacity: 1; }
   .row-actions { gap: 4px; }
+}
+
+/* Compact unit pickers (шт/л, %/₽): own arrow, inset from the edge. Lives here,
+   after the `background` shorthands above — an unlayered shorthand would wipe a
+   background-image declared in a layer, and so would a less specific rule. */
+.qty-cell .unit-select,
+.disc-cell .unit-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='gray' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 4px center;
+  background-size: 12px;
 }

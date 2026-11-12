@@ -95,7 +95,7 @@ export function TemplatePartsModal({
           </p>
 
           <section className="col gap-1">
-            <h3 className="text-sm fw-500">Для всех поколений</h3>
+            <h3 className="text-sm fw-500 tp-title">Для всех поколений</h3>
             <div className="panel">
               <div className="pl-head tp-grid">
                 <span>Запчасть</span>
@@ -119,7 +119,7 @@ export function TemplatePartsModal({
 
           {generation && (
             <section className="col gap-1">
-              <h3 className="text-sm fw-500">
+              <h3 className="text-sm fw-500 tp-title">
                 Только для {generation.make} {[generation.model, generation.code].filter(Boolean).join(' ')}
               </h3>
               <div className="panel">

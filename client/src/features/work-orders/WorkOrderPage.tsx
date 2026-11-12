@@ -1193,7 +1193,7 @@ function ScheduleSection({
           </div>
           <button
             type="button"
-            className="btn btn-default btn-sm"
+            className="btn btn-default"
             disabled={disabled}
             onClick={() => {
               setPickerDay(wo.scheduled_at ? new Date(wo.scheduled_at) : new Date());
