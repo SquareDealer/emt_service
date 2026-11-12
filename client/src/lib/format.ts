@@ -1,3 +1,4 @@
+import { BOARD_CLOSED_LIMIT } from './types';
 import type { Client, LaborLine, PartLine, WorkOrder } from './types';
 
 /** Format a number as RUB without trailing kopecks unless present. */
@@ -228,4 +229,9 @@ export function clientDeals(
     count: (c.imported_deals_count ?? 0) + (c.closed_orders_count ?? 0),
     sum: (c.imported_deals_sum ?? 0) + (c.closed_orders_sum ?? 0),
   };
+}
+
+/** The board's «Выдана» column holds only the newest few; the rest are in the archive. */
+export function capClosed<T>(items: T[], limit = BOARD_CLOSED_LIMIT): T[] {
+  return items.slice(0, limit);
 }

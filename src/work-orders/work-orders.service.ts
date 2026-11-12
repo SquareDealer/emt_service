@@ -18,6 +18,9 @@ import { CreateWorkOrderDto, UpdateWorkOrderDto } from './dto/work-order.dto';
 
 export type { Viewer } from './work-orders-core.service';
 
+/** How many closed orders the board's «Выдана» column shows. Mirrored on the client. */
+export const BOARD_CLOSED_LIMIT = 10;
+
 /** Sort options for the closed-orders archive. */
 export type ArchiveSort = 'closed_desc' | 'closed_asc' | 'total_desc' | 'total_asc';
 
@@ -225,20 +228,34 @@ export class WorkOrdersService {
       .getMany();
   }
 
-  /** Kanban board: visible orders grouped by status. */
+  /**
+   * Kanban board: visible orders grouped by status. «Выдана» shows only the
+   * most recently closed ones — the rest live in the archive, and loading years
+   * of closed orders on every board refresh would only get slower.
+   */
   async board(viewer: Viewer): Promise<Record<WorkOrderStatus, WorkOrder[]>> {
-    const all = await this.core.scope(this.core.baseListQb(), viewer)
-      .orderBy('wo.scheduled_at', 'ASC')
-      .addOrderBy('wo.created_at', 'ASC')
-      .getMany();
+    const [open, closed] = await Promise.all([
+      this.core
+        .scope(this.core.baseListQb(), viewer)
+        .andWhere("wo.status <> 'closed'")
+        .orderBy('wo.scheduled_at', 'ASC')
+        .addOrderBy('wo.created_at', 'ASC')
+        .getMany(),
+      this.core
+        .scope(this.core.baseListQb(), viewer)
+        .andWhere("wo.status = 'closed'")
+        .orderBy('wo.closed_at', 'DESC', 'NULLS LAST')
+        .take(BOARD_CLOSED_LIMIT)
+        .getMany(),
+    ]);
     const groups: Record<WorkOrderStatus, WorkOrder[]> = {
       scheduled: [],
       in_progress: [],
       waiting: [],
       done: [],
-      closed: [],
+      closed,
     };
-    for (const wo of all) groups[wo.status].push(wo);
+    for (const wo of open) groups[wo.status].push(wo);
     return groups;
   }
 

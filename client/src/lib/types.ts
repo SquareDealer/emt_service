@@ -281,3 +281,6 @@ export const STATUS_LABEL: Record<WorkOrderStatus, string> = {
   done: 'Готова',
   closed: 'Выдана',
 };
+
+/** How many closed orders the board's «Выдана» column shows. Mirrors the server. */
+export const BOARD_CLOSED_LIMIT = 10;

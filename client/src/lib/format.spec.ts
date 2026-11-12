@@ -11,6 +11,7 @@ import {
   subtotal,
   vehicleLabel,
   clientDeals,
+  capClosed,
 } from './format';
 import type { LaborLine, PartLine, WorkOrder } from './types';
 
@@ -150,5 +151,16 @@ describe('clientDeals', () => {
       count: 0,
       sum: 0,
     });
+  });
+});
+
+describe('capClosed', () => {
+  it('keeps the first ten cards of the «Выдана» column', () => {
+    const twelve = Array.from({ length: 12 }, (_, i) => i + 1);
+    expect(capClosed(twelve)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  });
+
+  it('leaves a short column alone', () => {
+    expect(capClosed([1, 2])).toEqual([1, 2]);
   });
 });

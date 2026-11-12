@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
@@ -17,8 +17,8 @@ import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import { useAuth } from '../../lib/auth';
 import { canAssignMaster } from '../../lib/roles';
-import { money, timeOnly, dateShort, vehicleLabel } from '../../lib/format';
-import { STATUS_LABEL, STATUS_ORDER } from '../../lib/types';
+import { money, timeOnly, dateShort, vehicleLabel, capClosed } from '../../lib/format';
+import { BOARD_CLOSED_LIMIT, STATUS_LABEL, STATUS_ORDER } from '../../lib/types';
 import type { WorkOrder, WorkOrderStatus } from '../../lib/types';
 import { Spinner } from '../../components/ui';
 import './board.css';
@@ -65,7 +65,8 @@ export function BoardPage() {
 
   const onBoardPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
-    if ((e.target as HTMLElement).closest('.board-card-drag')) return; // let dnd-kit handle cards
+    // Let dnd-kit handle cards, and let links stay links (capture would eat the click).
+    if ((e.target as HTMLElement).closest('.board-card-drag, a')) return;
     const el = boardRef.current;
     if (!el) return;
     panRef.current = { startX: e.clientX, startScroll: el.scrollLeft };
@@ -117,7 +118,8 @@ export function BoardPage() {
     setCols((c) => ({
       ...c,
       [from]: c[from].filter((w) => w.id !== id),
-      [over]: [moved, ...c[over]],
+      // A freshly issued order pushes the oldest card off «Выдана» — it stays in the archive.
+      [over]: over === 'closed' ? capClosed([moved, ...c[over]]) : [moved, ...c[over]],
     }));
     mStatus.mutate({ id, status: over });
   };
@@ -165,6 +167,11 @@ function Column({ status, items, showMaster, onOpen }: { status: WorkOrderStatus
         <span className="board-col-title">{STATUS_LABEL[status]}</span>
         <span className="board-count">{items.length}</span>
       </div>
+      {status === 'closed' && (
+        <div className="board-col-note">
+          последние {BOARD_CLOSED_LIMIT} · все — в <Link to="/archive">Архиве</Link>
+        </div>
+      )}
       <div ref={setNodeRef} className={`board-col-body ${isOver ? 'over' : ''}`}>
         {items.map((w) => (
           <DraggableCard key={w.id} wo={w} showMaster={showMaster} onOpen={onOpen} />
