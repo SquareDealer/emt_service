@@ -410,6 +410,16 @@
     display: flex; align-items: flex-end; gap: var(--sp-3); flex-wrap: wrap;
     padding-top: var(--sp-3); border-top: 1px solid var(--border);
   }
+  .users-add-short { flex: 0 0 160px; }
+  .users-add-role { flex: 0 0 180px; }
+  /* Phones: name on its own row, login|password and role|button in pairs. */
+  @media (max-width: 560px) {
+    .users-add > .field.grow { flex-basis: 100%; }
+    .users-add-short,
+    .users-add-role { flex: 1 1 calc(50% - var(--sp-3)); min-width: 0; }
+    .users-add > .btn { flex: 1 1 calc(50% - var(--sp-3)); }
+    .user-role { flex: 1 1 170px; width: auto; min-width: 0; }
+  }
 
   /* empty / skeleton */
   .empty {
@@ -453,6 +463,8 @@
     border-radius: var(--r-md);
   }
   .seg-btn {
+    /* reset makes svg a block — without flex an icon stacks over its label */
+    display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-1);
     height: 1.875rem; padding: 0 var(--sp-3);
     border-radius: var(--r-sm); font-size: var(--text-sm); font-weight: 500;
     color: var(--muted);
@@ -539,8 +551,17 @@
   .btn { min-width: var(--touch-target); }
   .btn-icon.btn-sm { width: var(--touch-target); }
   .seg-btn { min-height: var(--touch-target); }
+  .user-role,
+  .user-name { height: var(--touch-target); }
   .list-row[role='button'],
   .back-link,
   .wo-client,
   .veh-name { min-height: var(--touch-target); }
+
+  /* iOS Safari zooms the page into any field under 16px on focus. */
+  .input,
+  .select,
+  .textarea,
+  .cell-input,
+  .unit-select { font-size: 1rem; }
 }

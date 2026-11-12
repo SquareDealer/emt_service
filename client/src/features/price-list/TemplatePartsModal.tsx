@@ -96,7 +96,7 @@ export function TemplatePartsModal({
 
           <section className="col gap-1">
             <h3 className="text-sm fw-500">Для всех поколений</h3>
-            <div className="panel">
+            <div className="panel pl-table">
               <div className="pl-head tp-grid">
                 <span>Запчасть</span>
                 <span>Роль в работе</span>
@@ -122,7 +122,7 @@ export function TemplatePartsModal({
               <h3 className="text-sm fw-500">
                 Только для {generation.make} {[generation.model, generation.code].filter(Boolean).join(' ')}
               </h3>
-              <div className="panel">
+              <div className="panel pl-table">
                 <div className="pl-head tp-grid">
                   <span>Запчасть</span>
                   <span>Роль в работе</span>
@@ -196,7 +196,7 @@ function AttachForm({
   });
 
   return (
-    <div className="pl-row tp-grid" style={{ alignItems: 'start' }}>
+    <div className="pl-row tp-grid tp-attach" style={{ alignItems: 'start' }}>
       <div className="col gap-1" style={{ minWidth: 0 }}>
         {picked ? (
           <button className="cell-input ta-l truncate" onClick={() => setPicked(null)} title="Выбрать другую">

@@ -52,7 +52,7 @@ export function PartsCatalog() {
         </div>
       </div>
 
-      <div className="panel">
+      <div className="panel pl-table">
         <div className="pl-head parts-grid">
           <span>Название</span>
           <span>Производитель</span>

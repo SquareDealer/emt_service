@@ -320,15 +320,15 @@ function UsersSection({ selfId }: { selfId?: string }) {
             <label className="label">Имя</label>
             <input className="input" value={form.name} placeholder="Пётр Петров" onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
           </div>
-          <div className="field" style={{ width: 160 }}>
+          <div className="field users-add-short">
             <label className="label">Логин</label>
             <input className="input" value={form.login} placeholder="petrov" onChange={(e) => setForm((f) => ({ ...f, login: e.target.value }))} />
           </div>
-          <div className="field" style={{ width: 160 }}>
+          <div className="field users-add-short">
             <label className="label">Пароль</label>
             <input className="input" value={form.password} placeholder="мин. 4 символа" onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
           </div>
-          <div className="field" style={{ width: 180 }}>
+          <div className="field users-add-role">
             <label className="label">Роль</label>
             <select className="select" value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as UserRole }))}>
               {ROLE_VALUES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}

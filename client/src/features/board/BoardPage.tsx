@@ -4,7 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   useDraggable,
@@ -54,15 +55,22 @@ export function BoardPage() {
     },
   });
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  // Mouse: drag after 5px, so a plain click still opens the order. Finger: drag
+  // only after a press-and-hold — otherwise every swipe across a card (and the
+  // cards fill the board) grabbed it instead of scrolling.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  );
 
   // Grab-pan the board horizontally by dragging empty background. Cards keep their
-  // own dnd-kit drag (PointerSensor), so we bail out when the press lands on a card.
+  // own dnd-kit drag, so we bail out when the press lands on a card. Touch scrolls
+  // natively — the overflow container already does that.
   const boardRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<{ startX: number; startScroll: number } | null>(null);
 
   const onBoardPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || e.pointerType !== 'mouse') return;
     if ((e.target as HTMLElement).closest('.board-card-drag')) return; // let dnd-kit handle cards
     const el = boardRef.current;
     if (!el) return;
@@ -175,7 +183,7 @@ function Column({ status, items, showMaster, onOpen }: { status: WorkOrderStatus
 
 function DraggableCard({ wo, showMaster, onOpen }: { wo: WorkOrder; showMaster: boolean; onOpen: (id: string) => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: wo.id });
-  // Listeners on the whole card -> drag from anywhere. PointerSensor's 5px
+  // Listeners on the whole card -> drag from anywhere. The mouse sensor's 5px
   // activation distance lets a plain click (no movement) still open the order.
   return (
     <div

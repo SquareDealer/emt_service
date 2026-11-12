@@ -50,7 +50,7 @@
 .board-col-body.over { background: var(--primary-wash); }
 .board-empty { text-align: center; color: var(--faint); font-size: var(--text-xs); padding: var(--sp-4) 0; }
 
-.board-card-drag { cursor: grab; touch-action: none; outline: none; border-radius: var(--r-md); }
+.board-card-drag { cursor: grab; outline: none; border-radius: var(--r-md); }
 .board-card-drag:active { cursor: grabbing; }
 .board-card-drag:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
@@ -85,3 +85,19 @@
   font-size: 11px; font-weight: 500;
   color: var(--ink); }
 .board-card-master svg { color: var(--muted); flex-shrink: 0; }
+
+/* A finger drags only after a press-and-hold (TouchSensor delay), so the
+   browser may keep panning and zooming the page over a card. */
+.board-card-drag { touch-action: manipulation; }
+
+/* Phones: one column at a time, the next one peeking at the edge, and the
+   scroll settles on a column instead of between two. */
+@media (max-width: 560px) {
+  .board {
+    grid-auto-columns: calc(100% - 2.5rem);
+    scroll-snap-type: x proximity;
+    cursor: auto;
+  }
+  .board-col { scroll-snap-align: start; }
+  .board-card-title { white-space: normal; overflow-wrap: anywhere; }
+}

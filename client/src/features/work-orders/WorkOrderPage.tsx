@@ -343,7 +343,7 @@ export function WorkOrderPage() {
             <span className="row gap-1"><Car size={14} /> {vehicleLabel(wo.vehicle)} <span className="mono">{wo.vehicle?.plate || wo.vehicle?.vin || ''}</span></span>
           </div>
         </div>
-        <div className="row gap-2">
+        <div className="row gap-2 wo-head-actions">
           {closed ? (
             <>
               <StatusPill status="closed" />
@@ -390,8 +390,7 @@ export function WorkOrderPage() {
               <h2 className="panel-title"><Wrench size={16} className="muted" style={{ display: 'inline', verticalAlign: '-3px', marginRight: 6 }} />Работы</h2>
               {!closed && templates && templates.length > 0 && (
                 <select
-                  className="select btn-sm"
-                  style={{ width: 'auto', height: '1.875rem' }}
+                  className="select btn-sm wo-tpl-select"
                   value=""
                   onChange={(e) => { if (e.target.value) { keep(); setApplyTemplateId(e.target.value); } e.target.value = ''; }}
                   aria-label="Добавить из шаблона"
@@ -438,12 +437,14 @@ export function WorkOrderPage() {
                   />
                 ) : (
                   <div className="smeta-row labor-grid">
-                    <span className="truncate">{l.name}</span>
-                    <span className="ta-r mono tnum muted">{l.hours ?? '—'}</span>
-                    <span className="ta-r mono tnum muted">{money(l.rate_snapshot)}</span>
-                    <span className="ta-r mono tnum">{l.price_override != null ? <span className="ovr">{money(l.price_override)}</span> : <span className="faint">—</span>}</span>
-                    <span className="ta-r mono tnum">{lineDiscountCell(laborGross(l), l)}</span>
-                    <span className="ta-r mono tnum fw-500">{money(laborTotal(l))}</span>
+                    <span className="truncate c-name">{l.name}</span>
+                    <span className="c-metas">
+                      <span className="ta-r mono tnum muted c-meta" data-label="Часы" data-empty={l.hours == null || undefined}>{l.hours ?? '—'}</span>
+                      <span className="ta-r mono tnum muted c-meta" data-label="Ставка">{money(l.rate_snapshot)}</span>
+                      <span className="ta-r mono tnum c-meta" data-label="Цена" data-empty={l.price_override == null || undefined}>{l.price_override != null ? <span className="ovr">{money(l.price_override)}</span> : <span className="faint">—</span>}</span>
+                      <span className="ta-r mono tnum c-meta" data-label="Скидка" data-empty={lineDiscount(laborGross(l), l) <= 0 || undefined}>{lineDiscountCell(laborGross(l), l)}</span>
+                    </span>
+                    <span className="ta-r mono tnum fw-500 c-sum">{money(laborTotal(l))}</span>
                     {!closed ? (
                       <span className="row-actions">
                         <button className="btn btn-ghost btn-icon btn-sm edit" onClick={() => { setEditLaborId(l.id); setEditPartId(null); }} aria-label="Изменить"><Pencil size={14} /></button>
@@ -497,15 +498,17 @@ export function WorkOrderPage() {
                   />
                 ) : (
                   <div className="smeta-row part-grid">
-                    <span className="truncate">
+                    <span className="truncate c-name">
                       {p.name}
                       {p.manufacturer ? <span className="faint"> · {p.manufacturer}</span> : ''}
                       {p.catalog_number ? <span className="mono faint"> · {p.catalog_number}</span> : ''}
                     </span>
-                    <span className="ta-r mono tnum muted">{fmtQty(p.qty)} {unitLabel(p.unit)}</span>
-                    <span className="ta-r mono tnum muted">{money(p.unit_price)}</span>
-                    <span className="ta-r mono tnum">{lineDiscountCell(partGross(p), p)}</span>
-                    <span className="ta-r mono tnum fw-500">{money(partTotal(p))}</span>
+                    <span className="c-metas">
+                      <span className="ta-r mono tnum muted c-meta" data-label="Кол-во">{fmtQty(p.qty)} {unitLabel(p.unit)}</span>
+                      <span className="ta-r mono tnum muted c-meta" data-label="Цена">{money(p.unit_price)}</span>
+                      <span className="ta-r mono tnum c-meta" data-label="Скидка" data-empty={lineDiscount(partGross(p), p) <= 0 || undefined}>{lineDiscountCell(partGross(p), p)}</span>
+                    </span>
+                    <span className="ta-r mono tnum fw-500 c-sum">{money(partTotal(p))}</span>
                     {!closed ? (
                       <span className="row-actions">
                         <button className="btn btn-ghost btn-icon btn-sm edit" onClick={() => { setEditPartId(p.id); setEditLaborId(null); }} aria-label="Изменить"><Pencil size={14} /></button>
@@ -830,12 +833,20 @@ function LaborLineForm({
 
   return (
     <div className="smeta-add labor-grid">
-      <input className="cell-input" value={name} placeholder="Напр. Замена масла" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} autoFocus={editMode} />
-      <input className="cell-input ta-r tnum" value={hours} placeholder="ч" onChange={(e) => setHours(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" />
-      <input className="cell-input ta-r tnum" value={rate} placeholder="ставка" onChange={(e) => setRate(e.target.value.replace(/\D/g, ''))} inputMode="numeric" />
-      <input className="cell-input ta-r tnum" value={override} placeholder="фикс." onChange={(e) => setOverride(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" />
-      <LineDiscountCell type={discType} value={discValue} onType={setDiscType} onValue={setDiscValue} />
-      <span />
+      <input className="cell-input f-name" value={name} placeholder="Напр. Замена масла" aria-label="Операция" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} autoFocus={editMode} />
+      <label className="cell-field f-hours" data-label="Часы">
+        <input className="cell-input ta-r tnum" value={hours} placeholder="ч" onChange={(e) => setHours(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" />
+      </label>
+      <label className="cell-field f-rate" data-label="Ставка">
+        <input className="cell-input ta-r tnum" value={rate} placeholder="ставка" onChange={(e) => setRate(e.target.value.replace(/\D/g, ''))} inputMode="numeric" />
+      </label>
+      <label className="cell-field f-price" data-label="Фикс. цена">
+        <input className="cell-input ta-r tnum" value={override} placeholder="фикс." onChange={(e) => setOverride(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" />
+      </label>
+      <label className="cell-field f-disc" data-label="Скидка">
+        <LineDiscountCell type={discType} value={discValue} onType={setDiscType} onValue={setDiscValue} />
+      </label>
+      <span className="f-gap" />
       <span className="row-actions">
         {onCancel && (
           <button className="btn btn-ghost btn-icon btn-sm" onClick={onCancel} disabled={busy} aria-label="Отмена"><X size={15} /></button>
@@ -893,20 +904,26 @@ function PartLineForm({
   return (
     <div className="smeta-add part-grid">
       <div className="part-name-cell">
-        <input className="cell-input grow" value={name} placeholder="Напр. Масляный фильтр" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} autoFocus={editMode} />
-        <input className="cell-input brand" value={brand} placeholder="Производитель" onChange={(e) => setBrand(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
-        <input className="cell-input art" value={cat} placeholder="Артикул" onChange={(e) => setCat(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+        <input className="cell-input grow" value={name} placeholder="Напр. Масляный фильтр" aria-label="Деталь" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} autoFocus={editMode} />
+        <input className="cell-input brand" value={brand} placeholder="Производитель" aria-label="Производитель" onChange={(e) => setBrand(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+        <input className="cell-input art" value={cat} placeholder="Артикул" aria-label="Артикул" onChange={(e) => setCat(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
       </div>
-      <div className="qty-cell">
-        <input className="cell-input ta-r tnum" value={qty} placeholder="кол-во" onChange={(e) => setQty(onQty(e.target.value, unit))} inputMode="decimal" />
-        <select className="unit-select" value={unit} onChange={(e) => { const u = e.target.value as PartUnit; setUnit(u); setQty((q) => onQty(q, u)); }} aria-label="Единица">
-          <option value="pcs">шт</option>
-          <option value="l">л</option>
-        </select>
-      </div>
-      <input className="cell-input ta-r tnum" value={price} placeholder="цена" onChange={(e) => setPrice(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" />
-      <LineDiscountCell type={discType} value={discValue} onType={setDiscType} onValue={setDiscValue} />
-      <span />
+      <label className="cell-field f-qty" data-label="Кол-во">
+        <div className="qty-cell">
+          <input className="cell-input ta-r tnum" value={qty} placeholder="кол-во" onChange={(e) => setQty(onQty(e.target.value, unit))} inputMode="decimal" />
+          <select className="unit-select" value={unit} onChange={(e) => { const u = e.target.value as PartUnit; setUnit(u); setQty((q) => onQty(q, u)); }} aria-label="Единица">
+            <option value="pcs">шт</option>
+            <option value="l">л</option>
+          </select>
+        </div>
+      </label>
+      <label className="cell-field f-price" data-label="Цена">
+        <input className="cell-input ta-r tnum" value={price} placeholder="цена" onChange={(e) => setPrice(e.target.value.replace(/[^\d.]/g, ''))} inputMode="decimal" />
+      </label>
+      <label className="cell-field f-disc" data-label="Скидка">
+        <LineDiscountCell type={discType} value={discValue} onType={setDiscType} onValue={setDiscValue} />
+      </label>
+      <span className="f-gap" />
       <span className="row-actions">
         {onCancel && (
           <button className="btn btn-ghost btn-icon btn-sm" onClick={onCancel} disabled={busy} aria-label="Отмена"><X size={15} /></button>

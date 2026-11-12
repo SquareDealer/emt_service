@@ -89,7 +89,7 @@ export function PriceListPage() {
       ) : (
         <>
           <div className="pl-bar">
-            <div className="field" style={{ minWidth: 260 }}>
+            <div className="field pl-gen">
               <label className="label">Поколение</label>
               <select
                 className="input"
@@ -125,7 +125,7 @@ export function PriceListPage() {
               <div className="text-sm muted">Добавьте работы в Настройках — они появятся здесь.</div>
             </div>
           ) : (
-            <div className="panel">
+            <div className="panel pl-table">
               <div className="pl-head pl-grid">
                 <span>Работа</span>
                 <span className="ta-r">Норм.ч.</span>
@@ -211,9 +211,11 @@ function PriceRow({
   return (
     <div className="pl-row pl-grid">
       <span className="truncate">{row.template.name}</span>
+      <span className="pl-cell" data-label="Норм.ч.">
       {editable ? (
         <input
           className="cell-input ta-r tnum"
+          aria-label="Нормо-часы"
           value={hours}
           placeholder={row.base.hours != null ? String(row.base.hours) : '—'}
           onChange={(e) => setHours(e.target.value.replace(/[^\d.]/g, ''))}
@@ -224,9 +226,12 @@ function PriceRow({
       ) : (
         <span className="ta-r mono tnum muted">{row.base.hours ?? '—'}</span>
       )}
+      </span>
+      <span className="pl-cell" data-label="Цена">
       {editable ? (
         <input
           className="cell-input ta-r tnum"
+          aria-label="Цена"
           value={price}
           placeholder={row.base.price != null ? String(row.base.price) : '—'}
           onChange={(e) => setPrice(e.target.value.replace(/[^\d.]/g, ''))}
@@ -237,6 +242,7 @@ function PriceRow({
       ) : (
         <span className="ta-r mono tnum muted">{row.base.price != null ? money(row.base.price) : '—'}</span>
       )}
+      </span>
       <span className="ta-r mono tnum" data-inherited={inherited || undefined}>
         {row.effective.price != null ? money(row.effective.price) : '—'}
         {editable && (

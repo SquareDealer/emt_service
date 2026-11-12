@@ -169,13 +169,22 @@ index.css дизайн-токены (OKLCH, light/dark via [data-theme]), ком
   как UTC-полночь, и окно съезжало на часовой пояс.
 - `WorkOrderPage` авто-удаляет пустой наряд при уходе; `keepRef` ставится в `onMutate` **каждой**
   мутации, иначе наряд с только что добавленной строкой мог быть удалён.
+- **Смета и таблицы прайса узкие не только на телефоне:** рядом с сайдбаром и колонкой итогов
+  смета на ноутбуке 1280 ~650px. Поэтому переключение «таблица → карточки» — container query по
+  ширине панели (`.smeta` ≤780px, `.pl-table` ≤600px), а не `@media`. Числа строки обёрнуты в
+  `.c-metas` (`display: contents` в таблице), поля форм — в `<label class="cell-field" data-label>`
+  (подпись — `::before`, видна только в карточке).
+- **Доска на тач-экране:** `MouseSensor` (5px) + `TouchSensor` (удержание 250мс), карточки
+  `touch-action: manipulation`. С `PointerSensor` + `touch-action: none` любой свайп по карточке
+  начинал drag вместо прокрутки. JS-панорамирование фона — только для мыши.
+- На ≤900px поля ввода 16px (`1rem`) — иначе iOS Safari зумит страницу при фокусе.
 
 ## Проверки / тесты
 
 ```bash
 npx tsc --noEmit && npm test && npm run lint -- --max-warnings=0 && npm run build   # backend, 160 тестов
 cd client && npm run typecheck && npm run lint && npm test && npm run build          # client, 28 тестов
-cd client && npx playwright test                                                     # 9 e2e
+cd client && npx playwright test                                                     # 12 e2e
 ```
 - **Конвенция:** чистые юниты с рукописными фейковыми репозиториями (`as never`), без
   `@nestjs/testing` и supertest. См. `users.service.spec.ts`.
@@ -191,7 +200,8 @@ cd client && npx playwright test                                                
   репозитория сломал бы `docker build ./client`. Бэкенд читает её через `fs` (в API-образ спеки не
   попадают — `tsconfig.build.json` исключает `**/*spec.ts`). `lib/schedule.spec.ts`.
 - Playwright (`client/e2e/`, все `/api/**` застабены): mobile-вёрстка + календарь
-  (клик по пустому месту, протяжка панорамирует, вид резерва).
+  (клик по пустому месту, протяжка панорамирует, вид резерва); `mobile-screens.spec.ts` — смета
+  карточками на телефоне, строка архива, тач-прокрутка доски.
 - Acceptance AC-1..10 — в `checks.md`.
 - Backend tsconfig исключает `client/`.
 
