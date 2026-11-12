@@ -11,7 +11,6 @@ import {
   Table2,
 } from 'lucide-react';
 import { EmptyState } from '../../components/ui';
-import { useToast } from '../../lib/toast';
 import { generateOrders } from './mock';
 import {
   PERIOD_LABEL,
@@ -64,10 +63,9 @@ function Delta({ value, points, title }: { value: number | null; points?: boolea
 }
 
 export function AnalyticsPage() {
-  const toast = useToast();
   const now = useMemo(() => new Date(), []);
   // ПРОТОТИП: демо-наряды в локальном состоянии, чтобы «Указать закупку» пересчитывала экран.
-  const [orders, setOrders] = useState(() => generateOrders(now));
+  const [orders] = useState(() => generateOrders(now));
 
   const [kind, setKind] = useState<PeriodKind>('month');
   const [anchor, setAnchor] = useState(now);
@@ -99,18 +97,6 @@ export function AnalyticsPage() {
     setTab(k);
     setSort(null);
     setShowAll(false);
-  };
-
-  const saveCosts = (costs: Record<string, number>) => {
-    setOrders((list) =>
-      list.map((o) =>
-        o.parts.some((p) => p.id in costs)
-          ? { ...o, parts: o.parts.map((p) => (p.id in costs ? { ...p, cost: costs[p.id] } : p)) }
-          : o,
-      ),
-    );
-    setFillOpen(false);
-    toast(`Закупка сохранена: ${Object.keys(costs).length}`, 'success');
   };
 
   const kpis = [
@@ -387,7 +373,11 @@ export function AnalyticsPage() {
         </>
       )}
 
-      <CostFillModal open={fillOpen} orders={current} onClose={() => setFillOpen(false)} onSave={saveCosts} />
+      <CostFillModal
+        open={fillOpen}
+        range={{ from: period.from.toISOString(), to: period.to.toISOString() }}
+        onClose={() => setFillOpen(false)}
+      />
     </div>
   );
 }

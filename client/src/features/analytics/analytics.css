@@ -248,7 +248,7 @@ line.an-base { stroke: var(--border-strong); stroke-width: 1; shape-rendering: c
 .an-fill { border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
 .an-fill-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 96px 120px 52px;
+  grid-template-columns: minmax(0, 1fr) 96px 120px 76px 32px;
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-3);
@@ -258,7 +258,7 @@ line.an-base { stroke: var(--border-strong); stroke-width: 1; shape-rendering: c
 .an-fill-row:focus-within { background: var(--surface-2); }
 .an-fill-sale { text-align: right; }
 .an-fill-input { text-align: right; }
-.an-fill-m { color: var(--muted); }
+.an-fill-m { color: var(--muted); text-align: right; }
 .an-fill-m[data-neg] { color: var(--danger); }
 
 /* ---- узкие экраны ---- */
@@ -281,6 +281,6 @@ line.an-base { stroke: var(--border-strong); stroke-width: 1; shape-rendering: c
   .an-share, .an-share-h { display: none; }
   .an-row .truncate { white-space: normal; }
   .an-bd .panel-head { flex-wrap: wrap; }
-  .an-fill-row { grid-template-columns: minmax(0, 1fr) 104px; }
+  .an-fill-row { grid-template-columns: minmax(0, 1fr) 104px 32px; }
   .an-fill-sale, .an-fill-m { display: none; }
 }
