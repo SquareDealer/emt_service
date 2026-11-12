@@ -160,7 +160,8 @@ API (всё под JWT кроме `/health`, `/auth/login`):
 lib/      api.ts (fetch+JWT), auth.tsx, roles.ts, intake.tsx (IntakeContext — открыть приём со слотом),
           types.ts, schedule.ts (геометрия таймлайна, dayRangeIso, blockToEvent, parseEventId),
           format.ts (зеркало PricingService + vehicleLabel + estimateGroups + clientDeals + capClosed),
-          generations.ts (genLabel, groupGenerations), parts.ts (filterParts, manufacturersOf, partTemplateBody),
+          generations.ts (genLabel, groupGenerations), parts.ts (filterParts, manufacturersOf, partTemplateBody, unitLabel),
+          price.ts (parsePrice — ввод закупки, ≤ 2 знаков, MAX_PURCHASE_PRICE; analytics/query.ts ре-экспортирует),
           toast.tsx, theme.ts
 components/ GenerationPicker (поиск по справочнику поколений, общий для прайса и наряда),
           AppShell (nav скрывает «Настройки»/«Прайс-лист» у master, «Импорт» у не-owner),
@@ -181,6 +182,10 @@ index.css дизайн-токены (OKLCH, light/dark via [data-theme]), ком
 Полная спека — `DESIGN.md`. Навигация на наряд передаёт `state.back={to,label}`.
 
 Тонкости, которые легко сломать:
+- **Закупка и роли:** не-владелец никогда не отправляет ключ `purchase_price` — сервер отвечает 403 даже на
+  `null`; владелец шлёт его только когда значение задано (создание) или изменилось (правка) — см. `partTemplateBody`.
+- **Закупки наряда:** ключ запроса `PartCostsPanel` включает `linesSignature(lines)` (id + количество строк),
+  иначе после добавления/правки запчасти панель показывала бы список закупок со старым составом.
 - **`ScheduleTimeline`:** `panEnabled = !selectable`; pan делает `setPointerCapture` на
   скролл-контейнере, поэтому `pointerup` ретаргетится на него — клик по пустому месту ловится
   внутри pan-обработчиков (цель запоминается на `pointerdown`), а индекс дня берётся из `data-di`,
@@ -197,8 +202,8 @@ index.css дизайн-токены (OKLCH, light/dark via [data-theme]), ком
 
 ```bash
 npx tsc --noEmit && npm test && npm run lint -- --max-warnings=0 && npm run build   # backend, 288 тестов
-cd client && npm run typecheck && npm run lint && npm test && npm run build          # client, 112 тестов
-cd client && npx playwright test                                                     # 54 e2e
+cd client && npm run typecheck && npm run lint && npm test && npm run build          # client, 115 тестов
+cd client && npx playwright test                                                     # 57 e2e
 ```
 - **Конвенция:** чистые юниты с рукописными фейковыми репозиториями (`as never`), без
   `@nestjs/testing` и supertest. См. `users.service.spec.ts`.
@@ -216,12 +221,14 @@ cd client && npx playwright test                                                
   Таблица лежит на стороне клиента не случайно: контекст сборки клиентского образа — `./client`,
   а его `npm run build` (`tsc --noEmit && vite build`) типизирует spec-файлы, поэтому файл из корня
   репозитория сломал бы `docker build ./client`. Бэкенд читает её через `fs` (в API-образ спеки не
-  попадают — `tsconfig.build.json` исключает `**/*spec.ts`). `lib/schedule.spec.ts`. Client — 112 в 9 наборах: `lib/format` (20), `lib/parts` (18), `lib/schedule` (12),
-  `lib/generations` (8), `lib/roles` (2), `analytics/query` (22), `analytics/view` (11), `analytics/analytics` (7),
+  попадают — `tsconfig.build.json` исключает `**/*spec.ts`). `lib/schedule.spec.ts`.
+- Client (vitest) — 115 в 10 наборах: `lib/format` (20), `lib/parts` (18), `lib/schedule` (12),
+  `lib/generations` (8), `lib/roles` (2), `lib/price` (15), `analytics/query` (10), `analytics/view` (11), `analytics/analytics` (7),
   `work-orders/part-costs` (12).
-- Playwright (`client/e2e/`, все `/api/**` застабены, 54 теста): mobile-вёрстка + календарь
+- Playwright (`client/e2e/`, все `/api/**` застабены, 57 тестов): mobile-вёрстка + календарь
   (клик по пустому месту, протяжка панорамирует, вид резерва), экран аналитики (контракт запроса, пустой период,
-  ошибка/повтор, дозаполнение закупки, редирект не-владельца) и колонка «Закупка» каталога запчастей.
+  ошибка/повтор и несовпадение корзин, дозаполнение закупки, редирект не-владельца), колонка «Закупка» каталога
+  запчастей и панель «Закупка» в наряде (PATCH-контракт, у не-владельца панели и запросов нет).
 - Acceptance AC-1..11 — в `checks.md`.
 - Backend tsconfig исключает `client/`.
 
@@ -285,10 +292,6 @@ guard'а (любой мастер мог снести каталог).
   (`PART_TEMPLATES_LIMIT = 500`) и фильтрует локально — больше 500 позиций хвост обрежется.
 - **Ловушка CSS:** `.unit-select` получает стрелку в `wo.css`, а не в слое `index.css` —
   unlayered-шортхенд `background` в правилах ячеек стирает `background-image` из слоя.
-- **Закупка и роли:** не-владелец никогда не отправляет ключ `purchase_price` — сервер отвечает 403 даже на
-  `null`; владелец шлёт его только когда значение задано (создание) или изменилось (правка) — см. `partTemplateBody`.
-- **Закупки наряда:** ключ запроса `PartCostsPanel` включает `linesSignature(lines)` (id + количество строк),
-  иначе после добавления/правки запчасти панель показывала бы список закупок со старым составом.
 - **E2E:** проект Playwright — телефон; десктопные спеки ставят `test.use({ viewport, isMobile: false })`.
 
 **Аналитика и закупочная цена (владелец):** `purchase_price` на строке запчасти (снимок из каталога при
