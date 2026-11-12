@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Trash2, Package } from 'lucide-react';
+import { Check, Pencil, Plus, Search, Trash2, Package, X } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import { money } from '../../lib/format';
@@ -16,6 +16,7 @@ export function PartsCatalog() {
   const qc = useQueryClient();
   const toast = useToast();
   const [q, setQ] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const { data: parts, isLoading } = useQuery({
     queryKey: ['part-templates', q],
@@ -27,6 +28,12 @@ export function PartsCatalog() {
   const mCreate = useMutation({
     mutationFn: (body: Partial<PartTemplate>) => api.createPartTemplate(body),
     onSuccess: () => { invalidate(); toast('Запчасть добавлена в каталог', 'success'); },
+    onError: (e) => toast((e as Error).message, 'error'),
+  });
+  const mUpdate = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Partial<PartTemplate> }) =>
+      api.updatePartTemplate(id, body),
+    onSuccess: () => { invalidate(); setEditingId(null); toast('Запчасть обновлена', 'success'); },
     onError: (e) => toast((e as Error).message, 'error'),
   });
   const mDelete = useMutation({
@@ -68,7 +75,15 @@ export function PartsCatalog() {
             {q ? 'Ничего не найдено.' : 'Каталог пуст. Добавьте первую запчасть ниже.'}
           </div>
         ) : (
-          (parts ?? []).map((p) => (
+          (parts ?? []).map((p) => p.id === editingId ? (
+            <PartTemplateForm
+              key={p.id}
+              initial={p}
+              busy={mUpdate.isPending}
+              onSubmit={(body) => mUpdate.mutate({ id: p.id, body })}
+              onCancel={() => setEditingId(null)}
+            />
+          ) : (
             <div key={p.id} className="pl-row parts-grid">
               <span className="truncate">{p.name}</span>
               <span className="truncate muted">{p.manufacturer || '—'}</span>
@@ -77,6 +92,14 @@ export function PartsCatalog() {
                 {p.default_price != null ? money(p.default_price) : '—'}
               </span>
               <span className="row-actions">
+                <button
+                  className="btn btn-ghost btn-icon btn-sm"
+                  onClick={() => setEditingId(p.id)}
+                  aria-label={`Изменить ${p.name}`}
+                  title="Изменить"
+                >
+                  <Pencil size={14} />
+                </button>
                 <button
                   className="btn btn-ghost btn-icon btn-sm del"
                   onClick={() => mDelete.mutate(p.id)}
@@ -95,24 +118,39 @@ export function PartsCatalog() {
 
       <p className="text-xs muted">
         <Package size={13} style={{ display: 'inline', verticalAlign: '-2px' }} /> Каталог — это
-        только цена и реквизиты детали, без учёта остатков на складе.
+        только цена и реквизиты детали, без учёта остатков на складе. Правка каталога не меняет
+        запчасти, уже добавленные в сметы.
       </p>
     </div>
   );
 }
 
+/**
+ * One form for both jobs: the «add» row at the bottom of the catalog, and — with
+ * `initial` — an existing row edited in place (Enter saves, Escape cancels).
+ */
 function PartTemplateForm({
+  initial,
   busy,
   onSubmit,
+  onCancel,
 }: {
+  initial?: PartTemplate;
   busy: boolean;
   onSubmit: (b: Partial<PartTemplate>) => void;
+  onCancel?: () => void;
 }) {
-  const [name, setName] = useState('');
-  const [brand, setBrand] = useState('');
-  const [cat, setCat] = useState('');
-  const [price, setPrice] = useState('');
-  const [unit, setUnit] = useState<PartUnit>('pcs');
+  const editing = !!initial;
+  const [name, setName] = useState(initial?.name ?? '');
+  const [brand, setBrand] = useState(initial?.manufacturer ?? '');
+  const [cat, setCat] = useState(initial?.catalog_number ?? '');
+  const [price, setPrice] = useState(initial?.default_price != null ? String(initial.default_price) : '');
+  const [unit, setUnit] = useState<PartUnit>(initial?.unit ?? 'pcs');
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) nameRef.current?.focus();
+  }, [editing]);
 
   const submit = () => {
     if (!name.trim()) return;
@@ -121,33 +159,37 @@ function PartTemplateForm({
       manufacturer: brand.trim() || null,
       catalog_number: cat.trim() || null,
       unit,
+      // Cleared price → explicit null: «цена не задана», never 0.
       default_price: price ? Number(price) : null,
     });
-    setName(''); setBrand(''); setCat(''); setPrice(''); setUnit('pcs');
+    if (!editing) { setName(''); setBrand(''); setCat(''); setPrice(''); setUnit('pcs'); }
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') submit();
+    if (e.key === 'Escape' && onCancel) { e.stopPropagation(); onCancel(); }
   };
 
   return (
-    <div className="pl-row parts-grid">
+    <div className="pl-row parts-grid" data-editing={editing || undefined} onKeyDown={onKeyDown}>
       <input
+        ref={nameRef}
         className="cell-input"
         value={name}
         placeholder="Напр. Фильтр масляный"
         onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && submit()}
       />
       <input
         className="cell-input"
         value={brand}
         placeholder="MANN"
         onChange={(e) => setBrand(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && submit()}
       />
       <input
         className="cell-input mono"
         value={cat}
         placeholder="W712/95"
         onChange={(e) => setCat(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && submit()}
       />
       <div className="qty-cell">
         <input
@@ -155,8 +197,7 @@ function PartTemplateForm({
           value={price}
           placeholder="цена"
           onChange={(e) => setPrice(e.target.value.replace(/[^\d.]/g, ''))}
-          onKeyDown={(e) => e.key === 'Enter' && submit()}
-          inputMode="decimal"
+            inputMode="decimal"
         />
         <select
           className="unit-select"
@@ -169,13 +210,19 @@ function PartTemplateForm({
         </select>
       </div>
       <span className="row-actions">
+        {editing && (
+          <button className="btn btn-ghost btn-icon btn-sm" onClick={onCancel} aria-label="Отмена" title="Отмена">
+            <X size={15} />
+          </button>
+        )}
         <button
           className="btn btn-default btn-icon btn-sm"
           onClick={submit}
           disabled={!name.trim() || busy}
-          aria-label="Добавить в каталог"
+          aria-label={editing ? 'Сохранить' : 'Добавить в каталог'}
+          title={editing ? 'Сохранить' : 'Добавить в каталог'}
         >
-          {busy ? <Spinner /> : <Plus size={15} />}
+          {busy ? <Spinner /> : editing ? <Check size={15} /> : <Plus size={15} />}
         </button>
       </span>
     </div>

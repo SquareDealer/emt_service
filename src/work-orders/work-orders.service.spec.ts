@@ -54,6 +54,8 @@ interface Harness {
   transactions: number;
   /** Payload the duplicate transaction handed to create(WorkOrder, …). */
   copyCreatedWith: Partial<WorkOrder> | null;
+  /** Spy standing in for WorkOrderPdfService.build. */
+  pdfBuild: jest.Mock;
 }
 
 function harness(seed: WorkOrder[] = [wo()]): Harness {
@@ -67,6 +69,10 @@ function harness(seed: WorkOrder[] = [wo()]): Harness {
 
   const makeQb = () => {
     let wantedId: string | undefined;
+    // Enough of a query engine for board(): status predicate, closed_at sort, take.
+    let statusFilter: 'closed' | 'open' | null = null;
+    let byClosedDesc = false;
+    let limit: number | null = null;
     const qb = {
       leftJoinAndSelect: () => qb,
       leftJoin: () => qb,
@@ -75,10 +81,15 @@ function harness(seed: WorkOrder[] = [wo()]): Harness {
         wantedId = params?.id;
         return qb;
       },
-      andWhere: () => qb,
-      orderBy: (col: string) => {
+      andWhere: (sql?: string) => {
+        if (sql === "wo.status = 'closed'") statusFilter = 'closed';
+        if (sql === "wo.status <> 'closed'") statusFilter = 'open';
+        return qb;
+      },
+      orderBy: (col: string, dir?: string) => {
         h.orderings!.length = 0;
         h.orderings!.push(col);
+        byClosedDesc = col === 'wo.closed_at' && dir === 'DESC';
         return qb;
       },
       addOrderBy: (col: string) => {
@@ -86,7 +97,10 @@ function harness(seed: WorkOrder[] = [wo()]): Harness {
         return qb;
       },
       skip: () => qb,
-      take: () => qb,
+      take: (n?: number) => {
+        limit = n ?? null;
+        return qb;
+      },
       getOne: async () => {
         const found = rows.find((r) => r.id === wantedId) ?? null;
         if (!found) return null;
@@ -97,7 +111,20 @@ function harness(seed: WorkOrder[] = [wo()]): Harness {
           part_lines: parts.filter((p) => p.work_order_id === found.id),
         } as WorkOrder;
       },
-      getMany: async () => rows,
+      getMany: async () => {
+        let out = rows.filter((r) =>
+          statusFilter === 'closed'
+            ? r.status === 'closed'
+            : statusFilter === 'open'
+              ? r.status !== 'closed'
+              : true,
+        );
+        if (byClosedDesc) {
+          const t = (r: WorkOrder) => (r.closed_at ? new Date(r.closed_at).getTime() : -Infinity);
+          out = [...out].sort((a, b) => t(b) - t(a));
+        }
+        return limit != null ? out.slice(0, limit) : out;
+      },
       getManyAndCount: async () => [rows, rows.length],
     };
     return qb;
@@ -166,14 +193,20 @@ function harness(seed: WorkOrder[] = [wo()]): Harness {
     delete: async () => ({ affected: 1 }),
   });
 
-  const settings = { getLaborRate: async () => 2000 } as never;
+  const settings = {
+    getLaborRate: async () => 2000,
+    getDocSettings: async () => ({
+      companyName: 'EMT', companyInn: '', companyAddress: '', companyPhone: '', vatRate: 0,
+    }),
+  } as never;
+  h.pdfBuild = jest.fn(async () => Buffer.from('pdf'));
   const core = new WorkOrdersCoreService(repo as never, new PricingService());
 
   const service = new WorkOrdersService(
     core,
     { findOne: async () => ({ id: 'v1' }) } as never, // vehicleRepo
     settings,
-    {} as never, // pdf
+    { build: h.pdfBuild } as never, // pdf
     { isAssignable: async () => true } as never, // users
   );
 
@@ -215,6 +248,56 @@ describe('WorkOrdersService — role scoping', () => {
   it('lets owner see an order assigned to someone else', async () => {
     const h = harness([wo({ assigned_master_id: 'm-a' })]);
     await expect(h.service.findOne('wo1', owner)).resolves.toMatchObject({ id: 'wo1' });
+  });
+});
+
+describe('WorkOrdersService.board', () => {
+  const closedOn = (n: number) =>
+    wo({ id: `c${n}`, status: 'closed', closed_at: new Date(Date.UTC(2026, 0, n)) });
+
+  it('returns only the 10 most recently closed orders, newest first', async () => {
+    const closed = Array.from({ length: 12 }, (_, i) => closedOn(i + 1));
+    const open = [1, 2, 3].map((n) => wo({ id: `s${n}`, status: 'scheduled' }));
+    // Shuffled on purpose: the cap must follow closed_at, not insertion order.
+    const h = harness([...closed.slice(6), ...open, ...closed.slice(0, 6)]);
+
+    const b = await h.service.board(owner);
+    expect(b.closed.map((w) => w.id)).toEqual([
+      'c12', 'c11', 'c10', 'c9', 'c8', 'c7', 'c6', 'c5', 'c4', 'c3',
+    ]);
+    expect(b.scheduled).toHaveLength(3);
+  });
+
+  it('does not cap the open columns', async () => {
+    const h = harness(
+      Array.from({ length: 15 }, (_, i) => wo({ id: `s${i}`, status: 'scheduled' })),
+    );
+    const b = await h.service.board(owner);
+    expect(b.scheduled).toHaveLength(15);
+    expect(b.closed).toEqual([]);
+  });
+});
+
+describe('WorkOrdersService.renderPdf — «Предварительная калькуляция»', () => {
+  it('builds the calculation for an OPEN order without spending a doc number', async () => {
+    const h = harness([wo({ status: 'in_progress' })]); // empty estimate
+    const r = await h.service.renderPdf('wo1', owner);
+    expect(r.filename).toBe('kalkulyaciya-wo1.pdf');
+    expect(h.pdfBuild).toHaveBeenCalledWith(expect.objectContaining({ id: 'wo1' }), expect.anything(), 'calc');
+    expect(h.nextvalCalls).toBe(0);
+    expect(h.rows[0].doc_number ?? null).toBeNull();
+  });
+
+  it('still numbers a closed order lazily on first print', async () => {
+    const h = harness([wo({ status: 'closed', doc_number: null })]);
+    await h.service.renderPdf('wo1', owner);
+    expect(h.nextvalCalls).toBe(1);
+  });
+
+  it("404s for another master's order", async () => {
+    const h = harness([wo({ assigned_master_id: 'm-a' })]);
+    await expect(h.service.renderPdf('wo1', masterB)).rejects.toBeInstanceOf(NotFoundException);
+    expect(h.pdfBuild).not.toHaveBeenCalled();
   });
 });
 

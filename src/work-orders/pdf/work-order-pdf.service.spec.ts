@@ -199,3 +199,47 @@ describe('empty estimates', () => {
     expect(svc.orderBlocks({ labor_lines: [], part_lines: [] } as unknown as WorkOrder)).toEqual([]);
   });
 });
+
+describe('calculation title — printable before the order is closed', () => {
+  it('prints number and close date for a closed order', () => {
+    expect(svc.calcTitleLine({ doc_number: 17, closed_at: new Date(2026, 2, 5, 10) })).toBe(
+      '№ 17 от 05-03-2026',
+    );
+  });
+
+  it('drops the number and dates an open order by today', () => {
+    expect(
+      svc.calcTitleLine({ doc_number: null, closed_at: null }, new Date(2026, 10, 12, 9)),
+    ).toBe('от 12-11-2026');
+  });
+
+  it('renders a real PDF for an open order with an empty estimate', async () => {
+    const open = {
+      id: 'wo1', status: 'in_progress', doc_number: null, closed_at: null,
+      total_cached: 0, total_frozen: null, paid_amount: 0,
+      labor_lines: [], part_lines: [],
+    } as unknown as WorkOrder;
+    const settings = { companyName: 'EMT', companyInn: '', companyAddress: '', companyPhone: '', vatRate: 0 };
+    const buf = await svc.build(open, settings, 'calc');
+    expect(buf.subarray(0, 4).toString()).toBe('%PDF');
+  });
+});
+
+describe('document header — logo centred, shared by both documents', () => {
+  const settings = { companyName: 'EMT', companyInn: '7700000000', companyAddress: 'Москва', companyPhone: '', vatRate: 0 };
+  const widths = (cols: unknown[]) => cols.map((c) => (c as { width: unknown }).width);
+
+  it('flanks the logo with two equal star columns', () => {
+    const cols = svc.headerColumns('data:image/png;base64,AAAA', settings, 'EMT');
+    expect(widths(cols)).toEqual(['*', 130, '*']);
+    expect(cols[1]).toMatchObject({ image: 'data:image/png;base64,AAAA', alignment: 'center' });
+    expect(JSON.stringify(cols[2])).toContain('7700000000'); // requisites stay on the right
+  });
+
+  it('keeps the geometry and prints no placeholder when the logo file is missing', () => {
+    const cols = svc.headerColumns(null, settings, 'EMT');
+    expect(widths(cols)).toEqual(['*', 130, '*']);
+    expect(JSON.stringify(cols)).not.toContain('STO');
+    expect(cols[1]).not.toHaveProperty('image');
+  });
+});

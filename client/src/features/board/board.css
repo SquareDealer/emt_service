@@ -39,6 +39,15 @@
   padding: 1px 8px; border-radius: var(--r-full); min-width: 24px; text-align: center;
 }
 
+.board-col-note {
+  padding: var(--sp-1) var(--sp-3);
+  font-size: var(--text-xs);
+  color: var(--faint);
+  border-bottom: 1px solid var(--border);
+}
+.board-col-note a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+.board-col-note a:hover { color: var(--ink); }
+
 .board-col-body {
   display: flex; flex-direction: column; gap: var(--sp-2);
   padding: var(--sp-2);

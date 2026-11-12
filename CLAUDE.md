@@ -121,8 +121,11 @@ API (всё под JWT кроме `/health`, `/auth/login`):
 - `/clients` (+`/import`, `/:id/vehicles`), `/vehicles`, `/vehicle-generations`, `/part-templates`
 - `/work-orders` (+`/board`, `/calendar`, `/archive`, `/:id/labor|parts`, `/:id/status`, `/:id/close`,
   `/:id/paid`, `/:id/duplicate`, `/:id/template-preview`, `/:id/apply-template`, `/:id/groups/:key`,
-  `/:id/pdf` — смета, только для closed, `/:id/order-pdf` — заказ-наряд, любой статус)
-- `/price-list` (+`/:tpl/:gen` цена, `/copy` заливка между поколениями, `/:tpl/parts` связки)
+  `/:id/pdf` — предварительная калькуляция, любой статус (до закрытия — без номера, дата = сегодня), `/:id/order-pdf` — заказ-наряд, любой статус)
+- `/price-list` (+`/:tpl/:gen` цена, `/copy` заливка между поколениями, `/:tpl/parts` связки,
+  `POST /works` — работа + цена поколения одной транзакцией)
+- `template-preview` / `apply-template` принимают `generation_id`: нет параметра → поколение машины,
+  `base` (в query) / `null` (в теле) → базовые цены, uuid → это поколение
 - `/calendar-blocks`, `/task-templates`, `/users`, `/settings`, `/search?q=`
 
 Запись в каталоги (`task-templates`, `part-templates`, `vehicle-generations`, `price-list`) —
@@ -144,13 +147,18 @@ API (всё под JWT кроме `/health`, `/auth/login`):
 ```
 lib/      api.ts (fetch+JWT), auth.tsx, roles.ts, intake.tsx (IntakeContext — открыть приём со слотом),
           types.ts, schedule.ts (геометрия таймлайна, dayRangeIso, blockToEvent, parseEventId),
-          format.ts (зеркало PricingService + vehicleLabel + estimateGroups), toast.tsx, theme.ts
-components/ AppShell (nav скрывает «Настройки»/«Прайс-лист» у master, «Импорт» у не-owner),
+          format.ts (зеркало PricingService + vehicleLabel + estimateGroups + clientDeals + capClosed),
+          generations.ts (genLabel, groupGenerations), parts.ts (filterParts, manufacturersOf),
+          toast.tsx, theme.ts
+components/ GenerationPicker (поиск по справочнику поколений, общий для прайса и наряда),
+          AppShell (nav скрывает «Настройки»/«Прайс-лист» у master, «Импорт» у не-owner),
           GlobalSearch (⌘K), IntakeModal, VehicleFields (общие поля ТС), ScheduleTimeline, ui.tsx
 features/ auth/ clients/ board/ archive/ import/ settings/
           calendar/  CalendarPage + SlotMenu (запись/резерв) + BlockModal
-          price-list/ PriceListPage + PartsCatalog + TemplatePartsModal
-          work-orders/ WorkOrderPage + ApplyTemplateModal + DuplicateModal
+          price-list/ PriceListPage + PartsCatalog + TemplatePartsModal + PartPicker (подбор детали)
+                      + WorkFormModal (работа: добавить/править/убрать) + GenerationsModal
+          work-orders/ WorkOrderPage + PriceListPickerModal (работа из прайса с выбором поколения)
+                       + ApplyTemplateModal + DuplicateModal
 index.css дизайн-токены (OKLCH, light/dark via [data-theme]), компонентные классы
 ```
 
@@ -173,9 +181,9 @@ index.css дизайн-токены (OKLCH, light/dark via [data-theme]), ком
 ## Проверки / тесты
 
 ```bash
-npx tsc --noEmit && npm test && npm run lint -- --max-warnings=0 && npm run build   # backend, 160 тестов
-cd client && npm run typecheck && npm run lint && npm test && npm run build          # client, 28 тестов
-cd client && npx playwright test                                                     # 9 e2e
+npx tsc --noEmit && npm test && npm run lint -- --max-warnings=0 && npm run build   # backend, 188 тестов
+cd client && npm run typecheck && npm run lint && npm test && npm run build          # client, 49 тестов
+cd client && npx playwright test                                                     # 42 e2e
 ```
 - **Конвенция:** чистые юниты с рукописными фейковыми репозиториями (`as never`), без
   `@nestjs/testing` и supertest. См. `users.service.spec.ts`.
@@ -239,6 +247,23 @@ guard'а (любой мастер мог снести каталог).
 **Осознанный компромисс:** смета на экране показывает блоки заголовками внутри панелей «Работы»
 и «Запчасти», а единым списком «работа + её запчасти подряд» они видны в PDF заказ-наряда.
 Переписывание редактора сметы в один список — отдельная задача.
+
+**Вторая итерация правок (9 пунктов заказчика), без миграций:**
+- **История клиента** = импорт (`imported_deals_*`) + закрытые в CRM (`closed_orders_count/sum`,
+  считаются группирующим запросом в `ClientsService`, в сущности их нет). На экране — `clientDeals()`.
+- **Доска:** в «Выдана» `BOARD_CLOSED_LIMIT = 10` последних по `closed_at` — отдельный запрос с `take`,
+  константа продублирована на клиенте.
+- **Оба PDF печатаются в любом статусе.** Калькуляция по открытому наряду — без номера и с датой
+  дня печати; `doc_number` по-прежнему присваивается только при заморозке. Шапка общая
+  (`headerColumns`): логотип по центру между двумя `'*'`-колонками, реквизиты справа.
+- **Шаблоны работ ведутся в «Прайс-листе»**, секции в «Настройках» больше нет. Органы записи видят
+  `owner`/`master_receptionist` (`canManageCatalog`), мастер читает.
+- **Каталог работ остался общим:** «работа для поколения» = шаблон + переопределение цены.
+- **Каталог запчастей** правится на месте; подбор детали для работы грузит каталог целиком
+  (`PART_TEMPLATES_LIMIT = 500`) и фильтрует локально — больше 500 позиций хвост обрежется.
+- **Ловушка CSS:** `.unit-select` получает стрелку в `wo.css`, а не в слое `index.css` —
+  unlayered-шортхенд `background` в правилах ячеек стирает `background-image` из слоя.
+- **E2E:** проект Playwright — телефон; десктопные спеки ставят `test.use({ viewport, isMobile: false })`.
 
 **Dev-база сейчас почти пуста:** 1 клиент, 0 нарядов, 3 засеянных шаблона работ, каталог запчастей
 пуст. Прежнего импорта ~339 клиентов больше нет — если нужны реальные данные, импортировать заново.

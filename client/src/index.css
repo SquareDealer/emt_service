@@ -307,7 +307,10 @@
     font-size: var(--text-sm); color: var(--ink);
   }
   .inline-warn .btn { flex: 0 0 auto; }
-  .select {
+  /* `select.input` is the common spelling in the forms — without this it kept the
+     native arrow, glued to the right edge. */
+  .select,
+  select.input {
     appearance: none;
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='gray' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
     background-repeat: no-repeat;
@@ -448,11 +451,13 @@
 
   /* segmented control */
   .seg {
-    display: inline-flex; padding: 3px; gap: 2px;
+    display: inline-flex; align-items: center; padding: var(--sp-1); gap: 2px;
     background: var(--surface-2); border: 1px solid var(--border);
     border-radius: var(--r-md);
   }
   .seg-btn {
+    /* flex: the global `svg { display: block }` would otherwise stack icon over label */
+    display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-1);
     height: 1.875rem; padding: 0 var(--sp-3);
     border-radius: var(--r-sm); font-size: var(--text-sm); font-weight: 500;
     color: var(--muted);

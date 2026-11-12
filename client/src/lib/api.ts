@@ -210,12 +210,25 @@ export const api = {
   duplicateWorkOrder: (id: string, vehicle_id?: string) =>
     request<WorkOrder>(`/work-orders/${id}/duplicate`, { body: { vehicle_id } }),
 
-  /** What applying a price-list entry would add — shown for confirmation. */
-  templatePreview: (id: string, templateId: string) =>
-    request<TemplatePreview>(`/work-orders/${id}/template-preview?template_id=${templateId}`),
+  /**
+   * What applying a price-list entry would add — shown for confirmation.
+   * `generationId`: omitted → the car's own generation, null → base prices
+   * (`generation_id=base` on the wire), uuid → that generation.
+   */
+  templatePreview: (id: string, templateId: string, generationId?: string | null) =>
+    request<TemplatePreview>(
+      `/work-orders/${id}/template-preview?template_id=${templateId}` +
+        (generationId === undefined ? '' : `&generation_id=${generationId ?? 'base'}`),
+    ),
   applyTemplate: (
     id: string,
-    body: { template_id: string; part_template_ids?: string[]; qty?: Record<string, number> },
+    body: {
+      template_id: string;
+      part_template_ids?: string[];
+      qty?: Record<string, number>;
+      /** Omitted → the car's generation; null → base prices. */
+      generation_id?: string | null;
+    },
   ) => request<WorkOrder>(`/work-orders/${id}/apply-template`, { body }),
 
   // estimate blocks
@@ -236,6 +249,15 @@ export const api = {
     request<PriceListRow[]>(`/price-list${generationId ? `?generation_id=${generationId}` : ''}`),
   setPrice: (templateId: string, generationId: string, body: { hours?: number | null; price?: number | null }) =>
     request<unknown>(`/price-list/${templateId}/${generationId}`, { method: 'PUT', body }),
+  /** A new work plus, when a generation is named, its price for that generation. */
+  createWork: (body: {
+    name: string;
+    default_hours?: number | null;
+    default_price?: number | null;
+    generation_id?: string | null;
+    hours?: number | null;
+    price?: number | null;
+  }) => request<TaskTemplate>('/price-list/works', { body }),
   /** Reset a work to the shared base price for that generation. */
   clearPrice: (templateId: string, generationId: string) =>
     request<void>(`/price-list/${templateId}/${generationId}`, { method: 'DELETE' }),
