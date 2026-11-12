@@ -13,7 +13,9 @@ export interface PartTemplateInput {
   active?: boolean;
 }
 
-const LIMIT = 100;
+/** The part picker lists the whole catalog and filters it locally, so the page
+ *  must be large enough to hold it — at 100 the tail was silently cut off. */
+export const PART_TEMPLATES_LIMIT = 500;
 
 @Injectable()
 export class PartTemplatesService {
@@ -37,7 +39,7 @@ export class PartTemplatesService {
         { like },
       );
     }
-    return qb.orderBy('p.name', 'ASC').limit(LIMIT).getMany();
+    return qb.orderBy('p.name', 'ASC').limit(PART_TEMPLATES_LIMIT).getMany();
   }
 
   async findOne(id: string): Promise<PartTemplate> {
