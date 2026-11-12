@@ -54,17 +54,17 @@ export class WorkOrdersService {
     return this.core.repo;
   }
 
-  /** Build the calculation PDF for a frozen order. Filename is ASCII-only. */
+  /**
+   * Build the «Предварительная калькуляция» PDF. Available at ANY status — it
+   * is the quote handed to the customer before the work is done. An open order
+   * prints without a number: doc_number belongs to the freeze, and a preview
+   * must not burn one. Filename is ASCII-only.
+   */
   async renderPdf(id: string, viewer: Viewer): Promise<{ buffer: Buffer; filename: string }> {
     let wo = await this.findOne(id, viewer);
-    if (wo.status !== 'closed') {
-      throw new BadRequestException(
-        'Наряд не зафиксирован: PDF доступен после закрытия',
-      );
-    }
     // Orders closed before doc numbering existed have no number — assign on
     // first print (idempotent; normal closes already get one at freeze time).
-    if (wo.doc_number == null) {
+    if (wo.status === 'closed' && wo.doc_number == null) {
       await this.core.assignDocNumber(id);
       wo = await this.core.loadFull(id);
     }

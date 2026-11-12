@@ -161,7 +161,7 @@ export function WorkOrderPage() {
     mutationFn: () => api.workOrderPdf(id),
     onSuccess: (blob) => {
       downloadBlob(blob, `kalkulyaciya-${wo?.doc_number ?? id.slice(0, 8)}.pdf`);
-      toast('Документ сформирован', 'success');
+      toast('Калькуляция сформирована', 'success');
     },
     onError: (e) => toast((e as Error).message, 'error'),
   });
@@ -631,15 +631,15 @@ export function WorkOrderPage() {
                   </button>
                 </>
               ) : (
-                <>
-                  <div className="frozen-chip"><Check size={14} /> Зафиксировано {money(wo.total_frozen)}</div>
-                  <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => mPdf.mutate()} disabled={mPdf.isPending}>
-                    {mPdf.isPending ? <Spinner /> : <FileDown size={15} />} Сгенерировать отчёт
-                  </button>
-                </>
+                <div className="frozen-chip"><Check size={14} /> Зафиксировано {money(wo.total_frozen)}</div>
               )}
               <button className="btn btn-default" style={{ width: '100%' }} onClick={() => { keep(); setDupOpen(true); }}>
                 <Copy size={15} /> Копировать наряд
+              </button>
+              {/* Both documents print at any status — the calculation is the quote
+                  handed over before the work, not only the closing paper. */}
+              <button className="btn btn-default" style={{ width: '100%' }} onClick={() => mPdf.mutate()} disabled={mPdf.isPending}>
+                {mPdf.isPending ? <Spinner /> : <FileDown size={15} />} Предварительная калькуляция (PDF)
               </button>
               <button className="btn btn-default" style={{ width: '100%' }} onClick={() => mOrderPdf.mutate()} disabled={mOrderPdf.isPending}>
                 {mOrderPdf.isPending ? <Spinner /> : <FileDown size={15} />} Заказ-наряд (PDF)

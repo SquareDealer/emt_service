@@ -129,6 +129,15 @@ export class WorkOrderPdfService {
     return `${dd}-${mm}-${dt.getFullYear()}`;
   }
 
+  /**
+   * Second title line of the calculation. A closed order carries its number and
+   * close date; an open one is a preview — no number yet, dated today.
+   */
+  calcTitleLine(wo: Pick<WorkOrder, 'doc_number' | 'closed_at'>, now: Date = new Date()): string {
+    const date = this.dmy(wo.closed_at ?? now);
+    return wo.doc_number != null ? `№ ${wo.doc_number} от ${date}` : `от ${date}`;
+  }
+
   private styles(): NonNullable<TDocumentDefinitions['styles']> {
     return {
       company: { fontSize: 7, alignment: 'right', color: '#333333' },
@@ -175,8 +184,6 @@ export class WorkOrderPdfService {
     const paid = wo.paid_amount ?? 0;
     const due = this.pricing.round2(Math.max(0, total - paid));
 
-    const docNo = wo.doc_number != null ? String(wo.doc_number) : '—';
-    const docDate = this.dmy(wo.closed_at);
     const v = wo.vehicle;
     const client = v?.client;
     const companyName = s.companyName || 'Исполнитель (укажите в Настройках)';
@@ -202,7 +209,7 @@ export class WorkOrderPdfService {
           ],
         },
         { text: 'Предварительная калькуляция', style: 'docTitle', margin: [0, 12, 0, 0] },
-        { text: `№ ${docNo} от ${docDate}`, style: 'docTitle', margin: [0, 1, 0, 10] },
+        { text: this.calcTitleLine(wo), style: 'docTitle', margin: [0, 1, 0, 10] },
 
         // --- info table ---
         {

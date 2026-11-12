@@ -121,7 +121,7 @@ API (всё под JWT кроме `/health`, `/auth/login`):
 - `/clients` (+`/import`, `/:id/vehicles`), `/vehicles`, `/vehicle-generations`, `/part-templates`
 - `/work-orders` (+`/board`, `/calendar`, `/archive`, `/:id/labor|parts`, `/:id/status`, `/:id/close`,
   `/:id/paid`, `/:id/duplicate`, `/:id/template-preview`, `/:id/apply-template`, `/:id/groups/:key`,
-  `/:id/pdf` — смета, только для closed, `/:id/order-pdf` — заказ-наряд, любой статус)
+  `/:id/pdf` — предварительная калькуляция, любой статус (до закрытия — без номера, дата = сегодня), `/:id/order-pdf` — заказ-наряд, любой статус)
 - `/price-list` (+`/:tpl/:gen` цена, `/copy` заливка между поколениями, `/:tpl/parts` связки)
 - `/calendar-blocks`, `/task-templates`, `/users`, `/settings`, `/search?q=`
 

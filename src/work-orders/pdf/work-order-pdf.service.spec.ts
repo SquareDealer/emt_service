@@ -199,3 +199,28 @@ describe('empty estimates', () => {
     expect(svc.orderBlocks({ labor_lines: [], part_lines: [] } as unknown as WorkOrder)).toEqual([]);
   });
 });
+
+describe('calculation title — printable before the order is closed', () => {
+  it('prints number and close date for a closed order', () => {
+    expect(svc.calcTitleLine({ doc_number: 17, closed_at: new Date(2026, 2, 5, 10) })).toBe(
+      '№ 17 от 05-03-2026',
+    );
+  });
+
+  it('drops the number and dates an open order by today', () => {
+    expect(
+      svc.calcTitleLine({ doc_number: null, closed_at: null }, new Date(2026, 10, 12, 9)),
+    ).toBe('от 12-11-2026');
+  });
+
+  it('renders a real PDF for an open order with an empty estimate', async () => {
+    const open = {
+      id: 'wo1', status: 'in_progress', doc_number: null, closed_at: null,
+      total_cached: 0, total_frozen: null, paid_amount: 0,
+      labor_lines: [], part_lines: [],
+    } as unknown as WorkOrder;
+    const settings = { companyName: 'EMT', companyInn: '', companyAddress: '', companyPhone: '', vatRate: 0 };
+    const buf = await svc.build(open, settings, 'calc');
+    expect(buf.subarray(0, 4).toString()).toBe('%PDF');
+  });
+});

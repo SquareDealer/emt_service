@@ -54,6 +54,8 @@ interface Harness {
   transactions: number;
   /** Payload the duplicate transaction handed to create(WorkOrder, …). */
   copyCreatedWith: Partial<WorkOrder> | null;
+  /** Spy standing in for WorkOrderPdfService.build. */
+  pdfBuild: jest.Mock;
 }
 
 function harness(seed: WorkOrder[] = [wo()]): Harness {
@@ -191,14 +193,20 @@ function harness(seed: WorkOrder[] = [wo()]): Harness {
     delete: async () => ({ affected: 1 }),
   });
 
-  const settings = { getLaborRate: async () => 2000 } as never;
+  const settings = {
+    getLaborRate: async () => 2000,
+    getDocSettings: async () => ({
+      companyName: 'EMT', companyInn: '', companyAddress: '', companyPhone: '', vatRate: 0,
+    }),
+  } as never;
+  h.pdfBuild = jest.fn(async () => Buffer.from('pdf'));
   const core = new WorkOrdersCoreService(repo as never, new PricingService());
 
   const service = new WorkOrdersService(
     core,
     { findOne: async () => ({ id: 'v1' }) } as never, // vehicleRepo
     settings,
-    {} as never, // pdf
+    { build: h.pdfBuild } as never, // pdf
     { isAssignable: async () => true } as never, // users
   );
 
@@ -267,6 +275,29 @@ describe('WorkOrdersService.board', () => {
     const b = await h.service.board(owner);
     expect(b.scheduled).toHaveLength(15);
     expect(b.closed).toEqual([]);
+  });
+});
+
+describe('WorkOrdersService.renderPdf — «Предварительная калькуляция»', () => {
+  it('builds the calculation for an OPEN order without spending a doc number', async () => {
+    const h = harness([wo({ status: 'in_progress' })]); // empty estimate
+    const r = await h.service.renderPdf('wo1', owner);
+    expect(r.filename).toBe('kalkulyaciya-wo1.pdf');
+    expect(h.pdfBuild).toHaveBeenCalledWith(expect.objectContaining({ id: 'wo1' }), expect.anything(), 'calc');
+    expect(h.nextvalCalls).toBe(0);
+    expect(h.rows[0].doc_number ?? null).toBeNull();
+  });
+
+  it('still numbers a closed order lazily on first print', async () => {
+    const h = harness([wo({ status: 'closed', doc_number: null })]);
+    await h.service.renderPdf('wo1', owner);
+    expect(h.nextvalCalls).toBe(1);
+  });
+
+  it("404s for another master's order", async () => {
+    const h = harness([wo({ assigned_master_id: 'm-a' })]);
+    await expect(h.service.renderPdf('wo1', masterB)).rejects.toBeInstanceOf(NotFoundException);
+    expect(h.pdfBuild).not.toHaveBeenCalled();
   });
 });
 
